@@ -15,6 +15,29 @@ En Windows PowerShell puede hacer falta:
 npm.cmd run dev
 ```
 
+## Ejecutar con SQL
+
+En una terminal:
+
+```bash
+npm.cmd run server
+```
+
+En otra terminal:
+
+```bash
+npm.cmd run dev
+```
+
+La base queda en `server/data/patin-score-pro.sqlite`. Si el servidor SQL no está abierto, la app sigue usando `localStorage`.
+
+Para producción local:
+
+```bash
+npm.cmd run build
+npm.cmd run server
+```
+
 ## Incluye
 
 - Torneos, categorías, clubes, técnicas, patinadoras y jueces demo.
@@ -24,4 +47,4 @@ npm.cmd run dev
 - Rankings por categoría y clubes.
 - Actas imprimibles con firma de jueces y premiación final.
 - Registros básicos.
-- Persistencia en localStorage.
+- Persistencia SQL con SQLite y fallback en localStorage.

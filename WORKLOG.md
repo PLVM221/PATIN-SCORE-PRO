@@ -38,3 +38,5 @@
 | 12:30 | test: npm.cmd run lint OK, npm.cmd run build OK |
 | 12:35 | feat(branding): escudo del club organizador en cabecera y pantalla de receso con torneo/liga/club |
 | 12:36 | test: npm.cmd run lint OK, npm.cmd run build OK |
+| 12:48 | feat(sql): servidor Node con SQLite, API de estado, fallback localStorage y proxy Vite |
+| 12:49 | test: npm.cmd run lint OK, npm.cmd run build OK, /api/health OK |

@@ -312,10 +312,63 @@ export default function App() {
   const [pista, setPista] = useState(basePista)
   const [tab, setTab] = useState('Operador')
   const [juezId, setJuezId] = useState('j1')
+  const [persistencia, setPersistencia] = useState('localStorage')
   const audioRef = useRef(null)
+  const sqlActivoRef = useRef(false)
+  const cargandoSqlRef = useRef(true)
+  const omitirGuardadoRef = useRef(false)
   const esVistaWeb = new URLSearchParams(window.location.search).get('vista') === 'web'
 
-  useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(data)), [data])
+  useEffect(() => {
+    let active = true
+    async function cargarSql() {
+      try {
+        const response = await fetch('/api/state')
+        if (!response.ok) throw new Error('SQL no disponible')
+        const payload = await response.json()
+        sqlActivoRef.current = true
+        setPersistencia('SQL')
+        if (payload.data) {
+          omitirGuardadoRef.current = true
+          setData(normalizeData({ ...demo, ...payload.data }))
+        } else {
+          await fetch('/api/state', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          })
+        }
+      } catch {
+        sqlActivoRef.current = false
+        setPersistencia('localStorage')
+      } finally {
+        if (active) cargandoSqlRef.current = false
+      }
+    }
+    cargarSql()
+    return () => {
+      active = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    if (omitirGuardadoRef.current) {
+      omitirGuardadoRef.current = false
+      return undefined
+    }
+    if (!sqlActivoRef.current || cargandoSqlRef.current) return undefined
+    const timer = window.setTimeout(() => {
+      fetch('/api/state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).catch(() => setPersistencia('localStorage'))
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [data])
+
   useEffect(() => {
     const onStorage = (event) => {
       if (event.key === STORAGE_KEY) setData(loadData())
@@ -323,6 +376,22 @@ export default function App() {
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
   }, [])
+
+  useEffect(() => {
+    if (!esVistaWeb) return undefined
+    const timer = window.setInterval(() => {
+      fetch('/api/state')
+        .then((response) => response.ok ? response.json() : null)
+        .then((payload) => {
+          if (payload?.data) {
+            omitirGuardadoRef.current = true
+            setData(normalizeData({ ...demo, ...payload.data }))
+          }
+        })
+        .catch(() => {})
+    }, 2500)
+    return () => window.clearInterval(timer)
+  }, [esVistaWeb])
 
   const actual = useMemo(() => {
     const torneo = data.torneos.find((item) => item.id === pista.torneoId)
@@ -739,7 +808,7 @@ export default function App() {
 
       <footer>
         <button className="ghost danger" onClick={() => { localStorage.removeItem(STORAGE_KEY); setData(demo); setPista(basePista) }}>Reiniciar demo</button>
-        <span>Persistencia localStorage. Sin SQL.</span>
+        <span>Persistencia {persistencia}.</span>
       </footer>
     </div>
   )
