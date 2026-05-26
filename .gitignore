@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.log
+
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# App vieja generada en raiz durante pruebas; proyecto real vive en /patin-score-pro
+/README.md
+/index.html
+/package.json
+/package-lock.json
+/src/
