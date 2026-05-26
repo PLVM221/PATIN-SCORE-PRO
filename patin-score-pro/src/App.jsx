@@ -5,11 +5,21 @@ import './App.css'
 const STORAGE_KEY = 'patin-score-pro-v1'
 
 const demo = {
-  torneos: [{ id: 't1', nombre: 'Copa Ciudad 2026', sede: 'Polideportivo Central', fecha: '2026-05-26' }],
+  torneos: [{
+    id: 't1',
+    nombre: 'Copa Ciudad 2026',
+    liga: 'Liga Metropolitana',
+    clubOrganizadorId: 'cl1',
+    sede: 'Polideportivo Central',
+    fechaDesde: '2026-05-26',
+    fechaHasta: '2026-05-27',
+    turnosPorDia: 2,
+    turnos: ['Mañana', 'Tarde'],
+  }],
   categorias: [
-    { id: 'c1', nombre: 'Libre Infantil B', torneoId: 't1' },
-    { id: 'c2', nombre: 'Escuela Cadete C', torneoId: 't1' },
-    { id: 'c3', nombre: 'Show Juvenil', torneoId: 't1' },
+    { id: 'c1', nombre: 'Libre Infantil B', torneoId: 't1', dia: '2026-05-26', turno: 'Mañana', orden: 1 },
+    { id: 'c2', nombre: 'Escuela Cadete C', torneoId: 't1', dia: '2026-05-26', turno: 'Tarde', orden: 2 },
+    { id: 'c3', nombre: 'Show Juvenil', torneoId: 't1', dia: '2026-05-27', turno: 'Mañana', orden: 3 },
   ],
   clubes: [
     { id: 'cl1', nombre: 'Sol Patín', color: '#22c55e', logo: '' },
@@ -37,10 +47,10 @@ const demo = {
     { id: 'heroes', nombre: 'Heroes', archivo: '' },
   ],
   patinadoras: [
-    { id: 'p1', orden: 1, estado: 'pendiente', nombre: 'Sofia Benitez', edad: 10, clubId: 'cl1', tecnicaId: 'te1', categoriaId: 'c1', musicaId: 'libertango', musica: 'Libertango', audio: '', foto: '' },
-    { id: 'p2', orden: 2, estado: 'pendiente', nombre: 'Martina Lagos', edad: 11, clubId: 'cl2', tecnicaId: 'te2', categoriaId: 'c1', musicaId: 'cinema-paradiso', musica: 'Cinema Paradiso', audio: '', foto: '' },
-    { id: 'p3', orden: 1, estado: 'pendiente', nombre: 'Camila Rios', edad: 14, clubId: 'cl3', tecnicaId: 'te3', categoriaId: 'c2', musicaId: 'experience', musica: 'Experience', audio: '', foto: '' },
-    { id: 'p4', orden: 1, estado: 'pendiente', nombre: 'Equipo Aurora', edad: 15, clubId: 'cl1', tecnicaId: 'te1', categoriaId: 'c3', musicaId: 'heroes', musica: 'Heroes', audio: '', foto: '' },
+    { id: 'p1', orden: 1, ordenSalida: 1, dia: '2026-05-26', turno: 'Mañana', estado: 'pendiente', nombre: 'Sofia Benitez', edad: 10, clubId: 'cl1', tecnicaId: 'te1', categoriaId: 'c1', musicaId: 'libertango', musica: 'Libertango', audio: '', foto: '' },
+    { id: 'p2', orden: 2, ordenSalida: 2, dia: '2026-05-26', turno: 'Mañana', estado: 'pendiente', nombre: 'Martina Lagos', edad: 11, clubId: 'cl2', tecnicaId: 'te2', categoriaId: 'c1', musicaId: 'cinema-paradiso', musica: 'Cinema Paradiso', audio: '', foto: '' },
+    { id: 'p3', orden: 1, ordenSalida: 1, dia: '2026-05-26', turno: 'Tarde', estado: 'pendiente', nombre: 'Camila Rios', edad: 14, clubId: 'cl3', tecnicaId: 'te3', categoriaId: 'c2', musicaId: 'experience', musica: 'Experience', audio: '', foto: '' },
+    { id: 'p4', orden: 1, ordenSalida: 1, dia: '2026-05-27', turno: 'Mañana', estado: 'pendiente', nombre: 'Equipo Aurora', edad: 15, clubId: 'cl1', tecnicaId: 'te1', categoriaId: 'c3', musicaId: 'heroes', musica: 'Heroes', audio: '', foto: '' },
   ],
   puntajes: {},
   logs: [{ id: 'l1', fecha: new Date().toISOString(), texto: 'Demo iniciado' }],
@@ -53,6 +63,7 @@ const basePista = {
   estado: 'Preparando',
   modo: 'jueces',
   recesoMin: 5,
+  demoraRecesoSeg: 60,
   recesoHasta: null,
   puntajeHasta: null,
   puntajePatinadoraId: null,
@@ -60,7 +71,7 @@ const basePista = {
   autoRecesoHasta: null,
 }
 
-const tabs = ['Operador', 'Jueces', 'Pública LED', 'Datos', 'Tanteador', 'Ranking clubes', 'Actas', 'Registros']
+const tabs = ['Operador', 'Jueces', 'Pública LED', 'Datos', 'Web pública', 'Reportes', 'Tanteador', 'Ranking clubes', 'Actas', 'Registros']
 
 function loadData() {
   try {
@@ -74,10 +85,28 @@ function loadData() {
 function normalizeData(data) {
   return {
     ...data,
+    torneos: (data.torneos || demo.torneos).map((torneo) => ({
+      liga: '',
+      clubOrganizadorId: '',
+      fechaDesde: torneo.fecha || new Date().toISOString().slice(0, 10),
+      fechaHasta: torneo.fecha || new Date().toISOString().slice(0, 10),
+      turnosPorDia: 1,
+      turnos: ['Único'],
+      ...torneo,
+    })),
+    categorias: (data.categorias || demo.categorias).map((item, index) => ({
+      dia: data.torneos?.[0]?.fechaDesde || data.torneos?.[0]?.fecha || '',
+      turno: data.torneos?.[0]?.turnos?.[0] || 'Único',
+      orden: index + 1,
+      ...item,
+    })),
     canciones: data.canciones || [],
     conceptosPuntaje: data.conceptosPuntaje || demo.conceptosPuntaje,
     patinadoras: data.patinadoras.map((item, index) => ({
       orden: index + 1,
+      ordenSalida: item.ordenSalida || item.orden || index + 1,
+      dia: item.dia || data.torneos?.[0]?.fechaDesde || data.torneos?.[0]?.fecha || '',
+      turno: item.turno || data.torneos?.[0]?.turnos?.[0] || 'Único',
       estado: 'pendiente',
       musicaId: slug(item.musica || item.nombre),
       ...item,
@@ -138,6 +167,38 @@ function totalPuntaje(puntaje, modo, conceptosConfig = []) {
   return valores.reduce((sum, valor) => sum + valor, 0) / valores.length + bonus
 }
 
+function parcialesPuntaje(puntaje, modo, conceptosConfig = []) {
+  if (!puntaje) return []
+  if (modo === 'consenso') {
+    if (puntaje.consensoConceptos) {
+      return conceptosConfig.map((concepto) => ({
+        id: concepto.id,
+        nombre: concepto.nombre,
+        valor: puntaje.consensoConceptos?.[concepto.id] === '' ? null : Number(puntaje.consensoConceptos?.[concepto.id]),
+      }))
+    }
+    return [{ id: 'consenso', nombre: 'Puntaje', valor: puntaje.consenso === '' ? null : Number(puntaje.consenso) }]
+  }
+  const tieneConceptos = Object.values(puntaje.jueces || {}).some((item) => item.conceptos)
+  if (!tieneConceptos) {
+    return Object.entries(puntaje.jueces || {}).map(([juezId, item]) => ({
+      id: juezId,
+      nombre: juezId.toUpperCase(),
+      valor: item.valor === '' ? null : Number(item.valor),
+    }))
+  }
+  return conceptosConfig.map((concepto) => {
+    const valores = Object.values(puntaje.jueces || {})
+      .map((item) => Number(item.conceptos?.[concepto.id]))
+      .filter((valor) => Number.isFinite(valor))
+    return {
+      id: concepto.id,
+      nombre: concepto.nombre,
+      valor: valores.length ? valores.reduce((sum, valor) => sum + valor, 0) / valores.length : null,
+    }
+  })
+}
+
 function rankingCategoria(data, categoriaId, modo) {
   return data.patinadoras
     .filter((patinadora) => patinadora.categoriaId === categoriaId && patinadora.estado !== 'ausente')
@@ -146,7 +207,7 @@ function rankingCategoria(data, categoriaId, modo) {
       total: totalPuntaje(data.puntajes[patinadora.id], modo, data.conceptosPuntaje),
       confirmado: Boolean(data.puntajes[patinadora.id]?.confirmado),
     }))
-    .sort((a, b) => (b.total ?? -1) - (a.total ?? -1) || (a.orden || 0) - (b.orden || 0))
+    .sort((a, b) => (b.total ?? -1) - (a.total ?? -1) || compararSalida(a, b))
     .map((row, index) => ({ ...row, puesto: row.total == null ? null : index + 1 }))
 }
 
@@ -177,6 +238,58 @@ function cell(row, names) {
   return ''
 }
 
+function compararSalida(a, b) {
+  return String(a.dia || '').localeCompare(String(b.dia || ''))
+    || String(a.turno || '').localeCompare(String(b.turno || ''))
+    || (Number(a.ordenSalida || a.orden || 0) - Number(b.ordenSalida || b.orden || 0))
+    || String(a.nombre || '').localeCompare(String(b.nombre || ''))
+}
+
+function compararCategoria(a, b) {
+  return String(a.dia || '').localeCompare(String(b.dia || ''))
+    || String(a.turno || '').localeCompare(String(b.turno || ''))
+    || (Number(a.orden || 0) - Number(b.orden || 0))
+    || String(a.nombre || '').localeCompare(String(b.nombre || ''))
+}
+
+function compararReporte(data, a, b) {
+  const categoriaA = data.categorias.find((categoria) => categoria.id === a.categoriaId) || {}
+  const categoriaB = data.categorias.find((categoria) => categoria.id === b.categoriaId) || {}
+  return String(a.dia || categoriaA.dia || '').localeCompare(String(b.dia || categoriaB.dia || ''))
+    || String(a.turno || categoriaA.turno || '').localeCompare(String(b.turno || categoriaB.turno || ''))
+    || String(categoriaA.nombre || '').localeCompare(String(categoriaB.nombre || ''))
+    || (Number(a.ordenSalida || a.orden || 0) - Number(b.ordenSalida || b.orden || 0))
+    || String(a.nombre || '').localeCompare(String(b.nombre || ''))
+}
+
+function diasTorneo(torneo) {
+  const desde = torneo?.fechaDesde || torneo?.fecha
+  const hasta = torneo?.fechaHasta || desde
+  if (!desde) return []
+  const start = new Date(`${desde}T00:00:00`)
+  const end = new Date(`${hasta}T00:00:00`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [desde]
+  const days = []
+  for (let current = new Date(start); current <= end; current.setDate(current.getDate() + 1)) {
+    days.push(current.toISOString().slice(0, 10))
+  }
+  return days
+}
+
+function nombreClub(data, clubId) {
+  return data.clubes.find((club) => club.id === clubId)?.nombre || ''
+}
+
+function nombreCategoria(data, categoriaId) {
+  return data.categorias.find((categoria) => categoria.id === categoriaId)?.nombre || ''
+}
+
+function siguienteCategoria(data, categoriaId) {
+  const categorias = [...data.categorias].sort(compararCategoria)
+  const index = categorias.findIndex((categoria) => categoria.id === categoriaId)
+  return categorias[index + 1]
+}
+
 function readSheetRows(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -200,8 +313,16 @@ export default function App() {
   const [tab, setTab] = useState('Operador')
   const [juezId, setJuezId] = useState('j1')
   const audioRef = useRef(null)
+  const esVistaWeb = new URLSearchParams(window.location.search).get('vista') === 'web'
 
   useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(data)), [data])
+  useEffect(() => {
+    const onStorage = (event) => {
+      if (event.key === STORAGE_KEY) setData(loadData())
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   const actual = useMemo(() => {
     const torneo = data.torneos.find((item) => item.id === pista.torneoId)
@@ -216,8 +337,13 @@ export default function App() {
 
   const patinadorasCategoria = data.patinadoras
     .filter((item) => item.categoriaId === pista.categoriaId && item.estado !== 'ausente')
-    .sort((a, b) => (a.orden || 0) - (b.orden || 0))
+    .sort(compararSalida)
   const totalActual = totalPuntaje(actual.puntaje, pista.modo, data.conceptosPuntaje)
+  const clubOrganizador = data.clubes.find((club) => club.id === actual.torneo?.clubOrganizadorId)
+
+  if (esVistaWeb) {
+    return <VistaWeb data={data} modo={pista.modo} />
+  }
 
   function log(texto) {
     setData((prev) => ({ ...prev, logs: [{ id: id('log'), fecha: new Date().toISOString(), texto }, ...prev.logs] }))
@@ -235,7 +361,7 @@ export default function App() {
   function cambiarCategoria(categoriaId) {
     const primera = data.patinadoras
       .filter((item) => item.categoriaId === categoriaId && item.estado !== 'ausente')
-      .sort((a, b) => (a.orden || 0) - (b.orden || 0))[0]
+      .sort(compararSalida)[0]
     setPista((prev) => ({ ...prev, categoriaId, patinadoraId: primera?.id || '', estado: 'Preparando' }))
   }
 
@@ -300,25 +426,28 @@ export default function App() {
     const siguiente = patinadorasCategoria[index + 1]
     // eslint-disable-next-line react-hooks/purity
     const now = Date.now()
-    const categoriaFinalHasta = siguiente ? null : now + 60000
+    const demoraRecesoMs = Math.max(0, Number(pista.demoraRecesoSeg) || 0) * 1000
+    const categoriaFinalHasta = siguiente ? null : now + demoraRecesoMs
     setPista((prev) => ({
       ...prev,
       patinadoraId: siguiente?.id || actual.patinadora.id,
       estado: siguiente ? 'Preparando' : 'Categoría finalizada',
       puntajeHasta: now + 10000,
       puntajePatinadoraId: actual.patinadora.id,
+      demoraRecesoSeg: prev.demoraRecesoSeg,
       categoriaFinalHasta,
       autoRecesoHasta: categoriaFinalHasta ? categoriaFinalHasta + Number(prev.recesoMin) * 60000 : null,
     }))
   }
 
   function pasarSiguienteCategoria() {
-    const actualIndex = data.categorias.findIndex((item) => item.id === pista.categoriaId)
-    const siguienteCategoria = data.categorias[actualIndex + 1]
+    const categoriasOrdenadas = [...data.categorias].sort(compararCategoria)
+    const actualIndex = categoriasOrdenadas.findIndex((item) => item.id === pista.categoriaId)
+    const siguienteCategoria = categoriasOrdenadas[actualIndex + 1]
     if (!siguienteCategoria) return
     const primera = data.patinadoras
       .filter((item) => item.categoriaId === siguienteCategoria.id && item.estado !== 'ausente')
-      .sort((a, b) => (a.orden || 0) - (b.orden || 0))[0]
+      .sort(compararSalida)[0]
     setPista((prev) => ({
       ...prev,
       categoriaId: siguienteCategoria.id,
@@ -357,10 +486,11 @@ export default function App() {
 
   function postergar() {
     if (!actual.patinadora) return
-    const maxOrden = Math.max(...data.patinadoras.filter((item) => item.categoriaId === pista.categoriaId).map((item) => item.orden || 0), 0)
+    const maxOrden = Math.max(...data.patinadoras.filter((item) => item.categoriaId === pista.categoriaId).map((item) => item.ordenSalida || item.orden || 0), 0)
     mutate((draft) => {
       const row = draft.patinadoras.find((item) => item.id === actual.patinadora.id)
       row.orden = maxOrden + 1
+      row.ordenSalida = maxOrden + 1
       row.estado = 'postergada'
     }, `Postergada al final: ${actual.patinadora.nombre}`)
     const siguiente = patinadorasCategoria.find((item) => item.id !== actual.patinadora.id)
@@ -388,6 +518,9 @@ export default function App() {
           const clubNombre = cell(row, ['Club']) || 'Sin club'
           const categoriaNombre = cell(row, ['Categoria', 'Categoría']) || 'Sin categoría'
           const musicaTexto = cell(row, ['MusicaId', 'Musica ID', 'MúsicaId', 'Música ID', 'Musica', 'Música']) || nombre
+          const dia = cell(row, ['Dia', 'Día', 'Fecha']) || draft.torneos.find((torneo) => torneo.id === pista.torneoId)?.fechaDesde || ''
+          const turno = cell(row, ['Turno']) || draft.torneos.find((torneo) => torneo.id === pista.torneoId)?.turnos?.[0] || 'Único'
+          const ordenSalida = Number(cell(row, ['Orden', 'Orden salida', 'Orden de salida', 'Ubicacion', 'Ubicación', 'Ubicacion de salida', 'Ubicación de salida'])) || index + 1
           let club = clubes.find((item) => slug(item.nombre) === slug(clubNombre))
           if (!club) {
             club = { id: id('club'), nombre: clubNombre, color: '#28e67a', logo: '' }
@@ -405,6 +538,9 @@ export default function App() {
           return {
             id: id('pat'),
             orden: index + 1,
+            ordenSalida,
+            dia,
+            turno,
             estado: 'pendiente',
             nombre,
             edad: Number(cell(row, ['Edad'])) || '',
@@ -512,13 +648,22 @@ export default function App() {
         if (torneoNombre) {
           let torneo = draft.torneos.find((item) => slug(item.nombre) === slug(torneoNombre))
           if (!torneo) {
-            torneo = { id: id('tor'), nombre: torneoNombre, sede: '', fecha: new Date().toISOString().slice(0, 10) }
+            torneo = { id: id('tor'), nombre: torneoNombre, liga: '', clubOrganizadorId: '', sede: '', fechaDesde: new Date().toISOString().slice(0, 10), fechaHasta: new Date().toISOString().slice(0, 10), turnosPorDia: 1, turnos: ['Único'] }
             draft.torneos.push(torneo)
           }
           torneoId = torneo.id
         }
         const existente = draft.categorias.find((item) => slug(item.nombre) === slug(nombre) && item.torneoId === torneoId)
-        if (!existente) draft.categorias.push({ id: id('cat'), nombre, torneoId })
+        const dia = cell(row, ['Dia', 'Día', 'Fecha']) || draft.torneos.find((torneo) => torneo.id === torneoId)?.fechaDesde || ''
+        const turno = cell(row, ['Turno']) || draft.torneos.find((torneo) => torneo.id === torneoId)?.turnos?.[0] || 'Único'
+        const orden = Number(cell(row, ['Orden', 'Orden categoria', 'Orden categoría', 'Orden de categoria', 'Orden de categoría'])) || draft.categorias.length + 1
+        if (existente) {
+          existente.dia = dia
+          existente.turno = turno
+          existente.orden = orden
+        } else {
+          draft.categorias.push({ id: id('cat'), nombre, torneoId, dia, turno, orden })
+        }
       })
     }, `Categorías importadas: ${file.name}`)
   }
@@ -529,8 +674,12 @@ export default function App() {
         <div>
           <span>Patín Score Pro</span>
           <h1>{actual.torneo?.nombre}</h1>
-          <p>{actual.torneo?.sede} - {actual.torneo?.fecha}</p>
+          <p>{actual.torneo?.liga} - {clubOrganizador?.nombre || actual.torneo?.sede} - {actual.torneo?.fechaDesde} al {actual.torneo?.fechaHasta}</p>
         </div>
+        <div className="organizer-crest">
+          <Avatar src={clubOrganizador?.logo} label={clubOrganizador?.nombre} color={clubOrganizador?.color} />
+        </div>
+        <StatusInfo clima={tab === 'Operador'} />
         <strong>{pista.estado}</strong>
       </header>
 
@@ -542,10 +691,11 @@ export default function App() {
         <main className="grid two">
           <Panel title="Pista">
             <div className="fields">
-              <label>Categoría<select value={pista.categoriaId} onChange={(e) => cambiarCategoria(e.target.value)}>{data.categorias.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
+              <label>Categoría<select value={pista.categoriaId} onChange={(e) => cambiarCategoria(e.target.value)}>{[...data.categorias].sort(compararCategoria).map((item) => <option key={item.id} value={item.id}>{item.dia} {item.turno} - {item.orden}. {item.nombre}</option>)}</select></label>
               <label>Patinadora<select value={pista.patinadoraId} onChange={(e) => setPista({ ...pista, patinadoraId: e.target.value })}>{patinadorasCategoria.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
               <label>Modo<select value={pista.modo} onChange={(e) => setPista({ ...pista, modo: e.target.value })}><option value="jueces">Varios jueces</option><option value="consenso">Consensuado</option></select></label>
               <label>Receso minutos<input type="number" min="1" value={pista.recesoMin} onChange={(e) => setPista({ ...pista, recesoMin: e.target.value })} /></label>
+              <label>Demora antes del receso<input type="number" min="0" value={pista.demoraRecesoSeg} onChange={(e) => setPista({ ...pista, demoraRecesoSeg: e.target.value })} /></label>
             </div>
             <Competidor actual={actual} total={totalActual} />
             <div className="actions">
@@ -580,6 +730,8 @@ export default function App() {
       {tab === 'Jueces' && <Jueces data={data} pista={pista} actual={actual} juezId={juezId} setJuezId={setJuezId} actualizarPuntaje={actualizarPuntaje} publicarPuntaje={publicarPuntaje} pasarSiguienteCategoria={pasarSiguienteCategoria} iniciarReceso={iniciarRecesoDesdeJuez} />}
       {tab === 'Pública LED' && <Publica pista={pista} actual={actual} total={totalActual} data={data} modo={pista.modo} />}
       {tab === 'Datos' && <Datos data={data} mutate={mutate} guardarArchivo={guardarArchivo} importarListado={importarListado} cargarCanciones={cargarCanciones} importarClubes={importarClubes} importarTecnicas={importarTecnicas} importarCategorias={importarCategorias} />}
+      {tab === 'Web pública' && <WebPublica data={data} modo={pista.modo} />}
+      {tab === 'Reportes' && <Reportes data={data} />}
       {tab === 'Tanteador' && <Tanteador data={data} categoriaId={pista.categoriaId} modo={pista.modo} />}
       {tab === 'Ranking clubes' && <RankingClubes data={data} modo={pista.modo} />}
       {tab === 'Actas' && <Actas data={data} modo={pista.modo} />}
@@ -600,7 +752,7 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
   const totalTecnico = totalPuntaje(puntaje, pista.modo, data.conceptosPuntaje)
   const patinadorasOrdenadas = data.patinadoras
     .filter((item) => item.categoriaId === pista.categoriaId && item.estado !== 'ausente')
-    .sort((a, b) => (a.orden || 0) - (b.orden || 0))
+    .sort(compararSalida)
   const indiceActual = patinadorasOrdenadas.findIndex((item) => item.id === actual.patinadora?.id)
   const proxima = patinadorasOrdenadas[indiceActual + 1]
   const proximaClub = data.clubes.find((item) => item.id === proxima?.clubId)
@@ -641,7 +793,7 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
           <div>
             <small>{actual.categoria?.nombre}</small>
             <h2>{actual.patinadora?.nombre}</h2>
-            <p>{actual.club?.nombre}</p>
+            <p>{actual.club?.nombre} - {actual.patinadora?.dia} - {actual.patinadora?.turno} - salida {actual.patinadora?.ordenSalida || actual.patinadora?.orden}</p>
           </div>
         </div>
         <div className="concept-list">
@@ -671,12 +823,12 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
         <div className="next-skater">
           <span>Se prepara</span>
           <strong>{proxima?.nombre || 'Última patinadora de la categoría'}</strong>
-          {proxima && <small>{proximaClub?.nombre}</small>}
+          {proxima && <small>{proximaClub?.nombre} - {proxima.dia} - {proxima.turno} - salida {proxima.ordenSalida || proxima.orden}</small>}
         </div>
         <div className="warmup-list">
           <span>Próximas para ingresar a pista</span>
           {pendientesPista.length ? pendientesPista.map((item) => (
-            <div key={item.id}>{item.nombre}</div>
+            <div key={item.id}>{item.ordenSalida || item.orden}. {item.nombre} - {item.turno}</div>
           )) : <div>Sin patinadoras pendientes en esta categoría</div>}
         </div>
         {!proxima && (
@@ -686,6 +838,9 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
               Minutos de receso
               <input type="number" min="1" value={minutosReceso} onChange={(event) => setMinutosReceso(event.target.value)} />
             </label>
+            <div className="delay-note">
+              El receso automático aparece {pista.demoraRecesoSeg || 0} segundos después del tanteador final.
+            </div>
             <button onClick={() => iniciarReceso(minutosReceso)}>Receso</button>
           </div>
         )}
@@ -716,17 +871,33 @@ function Publica({ pista, actual, total, data, modo }) {
   const patinadoraPuntaje = data.patinadoras.find((item) => item.id === pista.puntajePatinadoraId)
   const clubPuntaje = data.clubes.find((item) => item.id === patinadoraPuntaje?.clubId)
   const totalPuntajeReciente = totalPuntaje(data.puntajes[pista.puntajePatinadoraId], modo, data.conceptosPuntaje)
+  const recesoHasta = pista.recesoHasta || pista.autoRecesoHasta
+  const proximaCategoria = siguienteCategoria(data, pista.categoriaId)
+  const clubOrganizador = data.clubes.find((club) => club.id === actual.torneo?.clubOrganizadorId)
 
   if (pista.estado === 'Receso' || mostrandoRecesoAuto) {
     return (
-      <main className="led">
-        <div>
-          <p>{actual.categoria?.nombre}</p>
+      <main className="break-screen">
+        <section>
+          <span>{actual.torneo?.liga}</span>
+          <div className="break-crest">
+            <Avatar src={clubOrganizador?.logo} label={clubOrganizador?.nombre} color={clubOrganizador?.color} />
+          </div>
           <h2>Receso</h2>
-          <span>{actual.torneo?.nombre}</span>
+          <p>{actual.torneo?.nombre}</p>
+          <small>{clubOrganizador?.nombre || 'Club organizador'}</small>
+        </section>
+        <div className="break-timer">
+          {recesoHasta ? <Timer hasta={recesoHasta} /> : <b>--:--</b>}
+          <small>Cuenta regresiva</small>
         </div>
-        <strong>--</strong>
-        {(pista.recesoHasta || pista.autoRecesoHasta) && <Timer hasta={pista.recesoHasta || pista.autoRecesoHasta} />}
+        <div className="break-info">
+          <div><span>Torneo</span><strong>{actual.torneo?.nombre || '-'}</strong></div>
+          <div><span>Liga</span><strong>{actual.torneo?.liga || '-'}</strong></div>
+          <div><span>Club organizador</span><strong>{clubOrganizador?.nombre || '-'}</strong></div>
+          <div><span>Siguiente categoría</span><strong>{proximaCategoria?.nombre || 'A confirmar'}</strong></div>
+          <div><span>Tiempo de receso</span><strong>{pista.recesoMin || 0} min</strong></div>
+        </div>
       </main>
     )
   }
@@ -747,7 +918,7 @@ function Publica({ pista, actual, total, data, modo }) {
 
   const rows = rankingCategoria(data, pista.categoriaId, modo).filter((row) => row.confirmado && row.total != null)
   if (rows.some((row) => row.total != null)) {
-    return <TanteadorLed categoria={actual.categoria} rows={rows} clubes={data.clubes} />
+    return <TanteadorLed categoria={actual.categoria} rows={rows} clubes={data.clubes} data={data} modo={modo} />
   }
 
   return (
@@ -763,36 +934,66 @@ function Publica({ pista, actual, total, data, modo }) {
   )
 }
 
-function TanteadorLed({ categoria, rows, clubes }) {
+function TanteadorLed({ categoria, rows, clubes, data, modo }) {
+  const pageSize = 8
+  const [page, setPage] = useState(0)
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize))
+  const currentPage = page % pageCount
+  const visibles = rows.slice(currentPage * pageSize, currentPage * pageSize + pageSize)
+  const columnas = rows[0] ? parcialesPuntaje(data.puntajes[rows[0].id], modo, data.conceptosPuntaje).filter((item) => item.valor != null) : []
+
+  useEffect(() => {
+    if (pageCount <= 1) {
+      return undefined
+    }
+    const timer = setInterval(() => setPage((prev) => (prev + 1) % pageCount), 7000)
+    return () => clearInterval(timer)
+  }, [pageCount])
+
   return (
     <main className="led-board">
       <header>
         <span>Tanteador</span>
         <h2>{categoria?.nombre}</h2>
       </header>
-      <div className="board-list">
-        {rows.map((row) => (
-          <div className={row.total == null ? 'pending' : ''} key={row.id}>
-            <strong>{row.puesto || '-'}</strong>
-            <span>{row.nombre}</span>
-            <small>{clubes.find((club) => club.id === row.clubId)?.nombre}</small>
-            <b>{row.total == null ? '--' : row.total.toFixed(2)}</b>
-          </div>
-        ))}
+      <div className="board-table" style={{ '--score-cols': columnas.length }}>
+        <div className="board-row board-head">
+          <span>Pos</span>
+          <span>Patinadora</span>
+          <span>Club</span>
+          {columnas.map((columna) => <span key={columna.id}>{columna.nombre}</span>)}
+          <span>Total</span>
+        </div>
+        {visibles.map((row) => {
+          const parciales = parcialesPuntaje(data.puntajes[row.id], modo, data.conceptosPuntaje)
+          return (
+            <div className="board-row" key={row.id}>
+              <strong>{row.puesto || '-'}</strong>
+              <span>{row.nombre}</span>
+              <small>{clubes.find((club) => club.id === row.clubId)?.nombre}</small>
+              {columnas.map((columna) => {
+                const parcial = parciales.find((item) => item.id === columna.id)
+                return <b key={columna.id}>{parcial?.valor == null ? '-' : parcial.valor.toFixed(2)}</b>
+              })}
+              <b>{row.total == null ? '--' : row.total.toFixed(2)}</b>
+            </div>
+          )
+        })}
       </div>
+      {pageCount > 1 && <em>Página {currentPage + 1} de {pageCount}</em>}
     </main>
   )
 }
 
 function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones, importarClubes, importarTecnicas, importarCategorias }) {
-  const update = (entidad, itemId, campo, valor) => mutate((draft) => {
-    draft[entidad].find((item) => item.id === itemId)[campo] = valor
-  })
   return (
     <main className="grid admin-grid">
+      <Panel title="Configurar evento">
+        <ConfigEvento data={data} mutate={mutate} />
+      </Panel>
       <Panel title="Importar patinadoras">
         <div className="import-box">
-          <p>Columnas: Nombre, Club, Categoría, Música. Opcional: Edad.</p>
+          <p>Columnas: Nombre, Club, Categoría, Música, Día, Turno, Orden de salida. Opcional: Edad.</p>
           <label>Excel o CSV<input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => importarListado(e.target.files[0])} /></label>
         </div>
       </Panel>
@@ -804,7 +1005,7 @@ function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones,
       </Panel>
       <Panel title="Importar categorías">
         <div className="import-box">
-          <p>Columnas: Categoría o Nombre. Opcional: Torneo.</p>
+          <p>Columnas: Categoría o Nombre. Opcional: Torneo, Día, Turno, Orden de categoría.</p>
           <label>Excel o CSV<input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => importarCategorias(e.target.files[0])} /></label>
         </div>
       </Panel>
@@ -826,57 +1027,147 @@ function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones,
       </Panel>
       <Panel title="Clubes">
         <EditorEntidades
-          items={data.clubes}
-          srcCampo="logo"
-          ayudaArchivo="Subir logo del club"
-          onName={(itemId, valor) => update('clubes', itemId, 'nombre', valor)}
+          placeholder="Nombre del club"
+          ayudaArchivo="Logo del club"
           onFile={(itemId, file) => guardarArchivo('img', 'clubes', itemId, 'logo', file)}
-          onAdd={(nombre) => mutate((draft) => { draft.clubes.push({ id: id('club'), nombre, color: '#28e67a', logo: '' }) }, `Club agregado: ${nombre}`)}
+          onAdd={(nombre, itemId) => mutate((draft) => { draft.clubes.push({ id: itemId, nombre, color: '#28e67a', logo: '' }) }, `Club agregado: ${nombre}`)}
         />
       </Panel>
       <Panel title="Profesoras">
         <EditorEntidades
-          items={data.tecnicas}
-          srcCampo="foto"
-          ayudaArchivo="Subir foto de profesora"
-          onName={(itemId, valor) => update('tecnicas', itemId, 'nombre', valor)}
+          placeholder="Nombre de la profesora"
+          ayudaArchivo="Foto de profesora"
           onFile={(itemId, file) => guardarArchivo('img', 'tecnicas', itemId, 'foto', file)}
-          onAdd={(nombre) => mutate((draft) => { draft.tecnicas.push({ id: id('tec'), nombre, clubId: data.clubes[0]?.id || '', foto: '' }) }, `Profesora agregada: ${nombre}`)}
+          onAdd={(nombre, itemId) => mutate((draft) => { draft.tecnicas.push({ id: itemId, nombre, clubId: data.clubes[0]?.id || '', foto: '' }) }, `Profesora agregada: ${nombre}`)}
         />
       </Panel>
+      <Panel title="Orden de categorías">
+        <OrdenCategorias data={data} mutate={mutate} />
+      </Panel>
       <Panel title="Patinadoras">
-        <EditorEntidades
-          items={data.patinadoras}
-          srcCampo="foto"
-          ayudaArchivo="Subir foto de patinadora"
-          extra={(item) => `${item.estado} - ${item.musicaId}`}
-          onName={(itemId, valor) => update('patinadoras', itemId, 'nombre', valor)}
-          onFile={(itemId, file) => guardarArchivo('img', 'patinadoras', itemId, 'foto', file)}
-          onAdd={(nombre) => mutate((draft) => {
-            const categoriaId = draft.categorias[0]?.id || ''
-            draft.patinadoras.push({
-              id: id('pat'),
-              orden: draft.patinadoras.filter((item) => item.categoriaId === categoriaId).length + 1,
-              estado: 'pendiente',
-              nombre,
-              edad: '',
-              clubId: draft.clubes[0]?.id || '',
-              tecnicaId: draft.tecnicas[0]?.id || '',
-              categoriaId,
-              musicaId: slug(nombre),
-              musica: nombre,
-              audio: '',
-              foto: '',
-            })
-          }, `Patinadora agregada: ${nombre}`)}
-        />
+        <EditorPatinadoras data={data} mutate={mutate} guardarArchivo={guardarArchivo} />
       </Panel>
     </main>
   )
 }
 
+function ConfigEvento({ data, mutate }) {
+  const torneo = data.torneos[0]
+  const [ok, setOk] = useState(false)
+
+  function cambiar(campo, valor) {
+    mutate((draft) => {
+      draft.torneos[0][campo] = valor
+    })
+  }
+
+  function cambiarTurnos(cantidad) {
+    const total = Math.max(1, Number(cantidad) || 1)
+    mutate((draft) => {
+      const actual = draft.torneos[0]
+      actual.turnosPorDia = total
+      const nombresBase = ['Mañana', 'Tarde', 'Noche']
+      actual.turnos = Array.from({ length: total }, (_, index) => actual.turnos?.[index] || nombresBase[index] || `Turno ${index + 1}`)
+    }, 'Turnos del evento actualizados')
+  }
+
+  function cambiarNombreTurno(index, valor) {
+    mutate((draft) => {
+      draft.torneos[0].turnos[index] = valor
+    })
+  }
+
+  function confirmar() {
+    setOk(true)
+    window.setTimeout(() => setOk(false), 1300)
+  }
+
+  function cargarEscudoOrganizador(file) {
+    if (!file || !torneo.clubOrganizadorId) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      mutate((draft) => {
+        const club = draft.clubes.find((item) => item.id === draft.torneos[0].clubOrganizadorId)
+        if (club) club.logo = reader.result
+      }, 'Escudo del club organizador cargado')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div className="event-config">
+      <div className="fields">
+        <label>Nombre del evento<input value={torneo.nombre} onChange={(event) => cambiar('nombre', event.target.value)} /></label>
+        <label>Liga<input value={torneo.liga || ''} onChange={(event) => cambiar('liga', event.target.value)} /></label>
+        <label>Club organizador<select value={torneo.clubOrganizadorId || ''} onChange={(event) => cambiar('clubOrganizadorId', event.target.value)}><option value="">Sin asignar</option>{data.clubes.map((club) => <option key={club.id} value={club.id}>{club.nombre}</option>)}</select></label>
+        <label>Sede<input value={torneo.sede || ''} onChange={(event) => cambiar('sede', event.target.value)} /></label>
+        <label>Fecha desde<input type="date" value={torneo.fechaDesde || ''} onChange={(event) => cambiar('fechaDesde', event.target.value)} /></label>
+        <label>Fecha hasta<input type="date" value={torneo.fechaHasta || ''} onChange={(event) => cambiar('fechaHasta', event.target.value)} /></label>
+        <label>Turnos por día<input type="number" min="1" max="4" value={torneo.turnosPorDia || 1} onChange={(event) => cambiarTurnos(event.target.value)} /></label>
+        <label>Escudo club organizador<input type="file" accept="image/*" onChange={(event) => cargarEscudoOrganizador(event.target.files[0])} /></label>
+      </div>
+      <div className="turnos-config">
+        {(torneo.turnos || ['Único']).map((turno, index) => (
+          <label key={index}>Turno {index + 1}<input value={turno} onChange={(event) => cambiarNombreTurno(index, event.target.value)} /></label>
+        ))}
+      </div>
+      <small>Días configurados: {diasTorneo(torneo).join(', ') || 'sin fecha'}</small>
+      <button className="ok-button" onClick={confirmar}>{ok ? 'OK ✓' : 'OK'}</button>
+    </div>
+  )
+}
+
+function OrdenCategorias({ data, mutate }) {
+  const torneo = data.torneos[0]
+  const [form, setForm] = useState({
+    categoriaId: data.categorias[0]?.id || '',
+    nombre: '',
+    dia: torneo.fechaDesde || '',
+    turno: torneo.turnos?.[0] || 'Único',
+    orden: 1,
+  })
+  const [ok, setOk] = useState(false)
+
+  function cambiar(campo, valor) {
+    setForm((prev) => ({ ...prev, [campo]: valor }))
+  }
+
+  function guardar() {
+    const nombre = form.nombre.trim()
+    if (!form.categoriaId && !nombre) return
+    mutate((draft) => {
+      let categoria = draft.categorias.find((item) => item.id === form.categoriaId)
+      if (!categoria) {
+        categoria = { id: id('cat'), nombre, torneoId: draft.torneos[0]?.id || 't1' }
+        draft.categorias.push(categoria)
+      }
+      categoria.nombre = nombre || categoria.nombre
+      categoria.dia = form.dia
+      categoria.turno = form.turno
+      categoria.orden = Number(form.orden) || 1
+    }, 'Orden de categoría actualizado')
+    setForm((prev) => ({ ...prev, nombre: '', orden: Number(prev.orden) + 1 }))
+    setOk(true)
+    window.setTimeout(() => setOk(false), 1300)
+  }
+
+  return (
+    <div className="event-config">
+      <div className="fields">
+        <label>Categoría existente<select value={form.categoriaId} onChange={(event) => cambiar('categoriaId', event.target.value)}><option value="">Nueva categoría</option>{[...data.categorias].sort(compararCategoria).map((categoria) => <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>)}</select></label>
+        <label>Nombre si es nueva<input value={form.nombre} onChange={(event) => cambiar('nombre', event.target.value)} /></label>
+        <label>Día<select value={form.dia} onChange={(event) => cambiar('dia', event.target.value)}>{diasTorneo(torneo).map((dia) => <option key={dia} value={dia}>{dia}</option>)}</select></label>
+        <label>Turno<select value={form.turno} onChange={(event) => cambiar('turno', event.target.value)}>{(torneo.turnos || ['Único']).map((turno) => <option key={turno} value={turno}>{turno}</option>)}</select></label>
+        <label>Orden de categoría<input type="number" min="1" value={form.orden} onChange={(event) => cambiar('orden', event.target.value)} /></label>
+      </div>
+      <button className="ok-button" onClick={guardar}>{ok ? 'OK ✓' : 'OK'}</button>
+    </div>
+  )
+}
+
 function ConfigPuntaje({ data, mutate }) {
   const [nombre, setNombre] = useState('')
+  const [ok, setOk] = useState({})
 
   function actualizar(conceptoId, valor) {
     mutate((draft) => {
@@ -890,6 +1181,8 @@ function ConfigPuntaje({ data, mutate }) {
     mutate((draft) => {
       draft.conceptosPuntaje.push({ id: slug(nombre), nombre: nombre.trim() })
     }, `Concepto de puntaje agregado: ${nombre}`)
+    setOk((prev) => ({ ...prev, nuevo: true }))
+    window.setTimeout(() => setOk((prev) => ({ ...prev, nuevo: false })), 1300)
     setNombre('')
   }
 
@@ -905,50 +1198,223 @@ function ConfigPuntaje({ data, mutate }) {
       {data.conceptosPuntaje.map((concepto) => (
         <div key={concepto.id}>
           <input value={concepto.nombre} onChange={(event) => actualizar(concepto.id, event.target.value)} />
+          <button className="ok-button" onClick={() => {
+            setOk((prev) => ({ ...prev, [concepto.id]: true }))
+            window.setTimeout(() => setOk((prev) => ({ ...prev, [concepto.id]: false })), 1300)
+          }}>{ok[concepto.id] ? 'OK ✓' : 'OK'}</button>
           <button className="danger" onClick={() => quitar(concepto.id)}>Quitar</button>
         </div>
       ))}
       <div>
         <input placeholder="Nuevo concepto: elemento técnico, componente..." value={nombre} onChange={(event) => setNombre(event.target.value)} />
-        <button onClick={agregar}>Agregar</button>
+        <button className="ok-button" onClick={agregar}>{ok.nuevo ? 'OK ✓' : 'OK'}</button>
       </div>
     </div>
   )
 }
 
-function EditorEntidades({ items, srcCampo, ayudaArchivo, extra, onName, onFile, onAdd }) {
+function EditorEntidades({ placeholder, ayudaArchivo, onFile, onAdd }) {
   const [nuevo, setNuevo] = useState('')
-  const [guardados, setGuardados] = useState({})
-
-  function ok(itemId) {
-    setGuardados((prev) => ({ ...prev, [itemId]: true }))
-    window.setTimeout(() => {
-      setGuardados((prev) => ({ ...prev, [itemId]: false }))
-    }, 1200)
-  }
+  const [file, setFile] = useState(null)
+  const [ok, setOk] = useState(false)
 
   function agregar() {
     if (!nuevo.trim()) return
-    onAdd(nuevo.trim())
+    const itemId = id('manual')
+    onAdd(nuevo.trim(), itemId)
+    if (file) onFile(itemId, file)
+    setOk(true)
+    window.setTimeout(() => setOk(false), 1300)
     setNuevo('')
+    setFile(null)
   }
 
   return (
     <div className="entity-editor">
-      {items.map((item) => (
-        <div className="entity-row" key={item.id}>
-          <Avatar src={item[srcCampo]} label={item.nombre} color={item.color} />
-          <input value={item.nombre} onChange={(event) => onName(item.id, event.target.value)} />
-          <button className="ok-button" onClick={() => ok(item.id)}>{guardados[item.id] ? 'OK ✓' : 'OK'}</button>
-          {extra && <small>{extra(item)}</small>}
-          <label className="file-hint">{ayudaArchivo}<input type="file" accept="image/*" onChange={(event) => onFile(item.id, event.target.files[0])} /></label>
-        </div>
-      ))}
-      <div className="entity-add">
-        <input placeholder="Agregar manual" value={nuevo} onChange={(event) => setNuevo(event.target.value)} />
-        <button onClick={agregar}>Agregar</button>
+      <div className="entity-add manual-only">
+        <input placeholder={placeholder} value={nuevo} onChange={(event) => setNuevo(event.target.value)} />
+        <label>{ayudaArchivo}<input type="file" accept="image/*" onChange={(event) => setFile(event.target.files[0])} /></label>
+        <button className="ok-button" onClick={agregar}>{ok ? 'OK ✓' : 'OK'}</button>
       </div>
+      {ok && <small>Dato confirmado</small>}
     </div>
+  )
+}
+
+function EditorPatinadoras({ data, mutate, guardarArchivo }) {
+  const [form, setForm] = useState({ nombre: '', categoriaId: data.categorias[0]?.id || '', clubId: data.clubes[0]?.id || '', dia: data.torneos[0]?.fechaDesde || '', turno: data.torneos[0]?.turnos?.[0] || 'Único', ordenSalida: 1, musica: '' })
+  const [file, setFile] = useState(null)
+  const [ok, setOk] = useState(false)
+  const torneo = data.torneos[0]
+  const dias = diasTorneo(torneo)
+  const turnos = torneo.turnos || ['Único']
+
+  function cambiar(campo, valor) {
+    setForm((prev) => ({ ...prev, [campo]: valor }))
+  }
+
+  function agregar() {
+    if (!form.nombre.trim()) return
+    const itemId = id('pat')
+    mutate((draft) => {
+      draft.patinadoras.push({
+        id: itemId,
+        orden: Number(form.ordenSalida) || 1,
+        ordenSalida: Number(form.ordenSalida) || 1,
+        dia: form.dia,
+        turno: form.turno,
+        estado: 'pendiente',
+        nombre: form.nombre.trim(),
+        edad: '',
+        clubId: form.clubId,
+        tecnicaId: draft.tecnicas[0]?.id || '',
+        categoriaId: form.categoriaId,
+        musicaId: slug(form.musica || form.nombre),
+        musica: form.musica || form.nombre.trim(),
+        audio: '',
+        foto: '',
+      })
+    }, `Patinadora agregada: ${form.nombre}`)
+    if (file) guardarArchivo('img', 'patinadoras', itemId, 'foto', file)
+    setOk(true)
+    window.setTimeout(() => setOk(false), 1300)
+    setForm((prev) => ({ ...prev, nombre: '', musica: '', ordenSalida: Number(prev.ordenSalida) + 1 }))
+    setFile(null)
+  }
+
+  return (
+    <div className="skater-editor">
+      <div className="skater-row manual-only">
+        <label>Nombre<input value={form.nombre} onChange={(event) => cambiar('nombre', event.target.value)} /></label>
+        <label>Categoría<select value={form.categoriaId} onChange={(event) => cambiar('categoriaId', event.target.value)}>{[...data.categorias].sort(compararCategoria).map((categoria) => <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>)}</select></label>
+        <label>Club<select value={form.clubId} onChange={(event) => cambiar('clubId', event.target.value)}>{data.clubes.map((club) => <option key={club.id} value={club.id}>{club.nombre}</option>)}</select></label>
+        <label>Día<select value={form.dia} onChange={(event) => cambiar('dia', event.target.value)}>{dias.map((dia) => <option key={dia} value={dia}>{dia}</option>)}</select></label>
+        <label>Turno<select value={form.turno} onChange={(event) => cambiar('turno', event.target.value)}>{turnos.map((turno) => <option key={turno} value={turno}>{turno}</option>)}</select></label>
+        <label>Ubicación de salida<input type="number" min="1" value={form.ordenSalida} onChange={(event) => cambiar('ordenSalida', event.target.value)} /></label>
+        <label>Música<input value={form.musica} onChange={(event) => cambiar('musica', event.target.value)} /></label>
+        <label>Foto<input type="file" accept="image/*" onChange={(event) => setFile(event.target.files[0])} /></label>
+        <button className="ok-button" onClick={agregar}>{ok ? 'OK ✓' : 'OK'}</button>
+      </div>
+      {ok && <small>Patinadora confirmada</small>}
+    </div>
+  )
+}
+
+function Reportes({ data }) {
+  const [campos, setCampos] = useState({
+    nombre: true,
+    club: true,
+    categoria: true,
+    dia: true,
+    turno: true,
+    orden: true,
+    musica: false,
+    profesora: false,
+  })
+  const opciones = [
+    ['nombre', 'Nombre'],
+    ['club', 'Club'],
+    ['categoria', 'Categoría'],
+    ['dia', 'Día'],
+    ['turno', 'Turno'],
+    ['orden', 'Orden de ingreso'],
+    ['musica', 'Música'],
+    ['profesora', 'Profesora'],
+  ]
+  const rows = [...data.patinadoras]
+    .sort((a, b) => compararReporte(data, a, b))
+
+  function valorCampo(row, campo) {
+    if (campo === 'club') return nombreClub(data, row.clubId)
+    if (campo === 'categoria') return nombreCategoria(data, row.categoriaId)
+    if (campo === 'orden') return row.ordenSalida || row.orden || ''
+    if (campo === 'musica') return row.musica || row.musicaId || ''
+    if (campo === 'profesora') return data.tecnicas.find((tecnica) => tecnica.id === row.tecnicaId)?.nombre || ''
+    return row[campo] || ''
+  }
+
+  const activos = opciones.filter(([campo]) => campos[campo])
+
+  return (
+    <main className="print">
+      <Panel title="Reporte de patinadoras">
+        <div className="report-controls no-print">
+          {opciones.map(([campo, label]) => (
+            <label key={campo} className="check-line"><input type="checkbox" checked={campos[campo]} onChange={(event) => setCampos((prev) => ({ ...prev, [campo]: event.target.checked }))} />{label}</label>
+          ))}
+          <button onClick={() => window.print()}>Imprimir reporte</button>
+        </div>
+        <table>
+          <thead><tr>{activos.map(([, label]) => <th key={label}>{label}</th>)}</tr></thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id}>{activos.map(([campo]) => <td key={campo}>{valorCampo(row, campo)}</td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </Panel>
+    </main>
+  )
+}
+
+function WebPublica({ data, modo }) {
+  const url = `${window.location.origin}${window.location.pathname}?vista=web`
+  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(url)}`
+
+  return (
+    <main className="grid two">
+      <Panel title="QR para tanteador web">
+        <div className="qr-box">
+          <img src={qr} alt="QR tanteador web" />
+          <div>
+            <strong>Escanear para seguir el tanteador</strong>
+            <p>Desde la web se elige la categoría y se ven posiciones, parciales y puntaje final.</p>
+            <input readOnly value={url} onFocus={(event) => event.currentTarget.select()} />
+          </div>
+        </div>
+      </Panel>
+      <Panel title="Vista previa web">
+        <VistaWeb data={data} modo={modo} compacto />
+      </Panel>
+    </main>
+  )
+}
+
+function VistaWeb({ data, modo, compacto = false }) {
+  const categorias = [...data.categorias].sort(compararCategoria)
+  const [categoriaId, setCategoriaId] = useState(categorias[0]?.id || '')
+  const categoria = categorias.find((item) => item.id === categoriaId) || categorias[0]
+  const rows = rankingCategoria(data, categoria?.id || '', modo).filter((row) => row.confirmado && row.total != null)
+
+  return (
+    <main className={compacto ? 'web-score compact' : 'web-score'}>
+      <header>
+        <span>Tanteador online</span>
+        <h1>{data.torneos[0]?.nombre}</h1>
+        <label>Categoría<select value={categoria?.id || ''} onChange={(event) => setCategoriaId(event.target.value)}>{categorias.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
+      </header>
+      <section>
+        <h2>{categoria?.nombre}</h2>
+        {rows.length ? (
+          <div className="web-list">
+            {rows.map((row) => {
+              const parciales = parcialesPuntaje(data.puntajes[row.id], modo, data.conceptosPuntaje).filter((item) => item.valor != null)
+              return (
+                <article key={row.id}>
+                  <strong>{row.puesto}</strong>
+                  <div>
+                    <h3>{row.nombre}</h3>
+                    <p>{nombreClub(data, row.clubId)}</p>
+                    <small>{parciales.map((item) => `${item.nombre}: ${item.valor.toFixed(2)}`).join(' · ')}</small>
+                  </div>
+                  <b>{row.total.toFixed(2)}</b>
+                </article>
+              )
+            })}
+          </div>
+        ) : <div className="empty">Todavía no hay puntajes publicados en esta categoría.</div>}
+      </section>
+    </main>
   )
 }
 
@@ -977,7 +1443,7 @@ function RankingClubes({ data, modo }) {
 function Rankings({ data, modo }) {
   return (
     <main className="grid two">
-      <Panel title="Tanteadores por categoría">{data.categorias.map((categoria) => <Tabla key={categoria.id} titulo={categoria.nombre} rows={rankingCategoria(data, categoria.id, modo).filter((row) => row.confirmado && row.total != null)} clubes={data.clubes} />)}</Panel>
+      <Panel title="Tanteadores por categoría">{[...data.categorias].sort(compararCategoria).map((categoria) => <Tabla key={categoria.id} titulo={categoria.nombre} rows={rankingCategoria(data, categoria.id, modo).filter((row) => row.confirmado && row.total != null)} clubes={data.clubes} />)}</Panel>
       <RankingClubes data={data} modo={modo} />
     </main>
   )
@@ -987,7 +1453,7 @@ function Actas({ data, modo }) {
   return (
     <main className="print">
       <button className="no-print" onClick={() => window.print()}>Imprimir actas</button>
-      {data.categorias.map((categoria) => <article className="sheet" key={categoria.id}><h2>Acta categoría: {categoria.nombre}</h2><Tabla rows={rankingCategoria(data, categoria.id, modo)} clubes={data.clubes} /><Firmas jueces={data.jueces} /></article>)}
+      {[...data.categorias].sort(compararCategoria).map((categoria) => <article className="sheet" key={categoria.id}><h2>Acta categoría: {categoria.nombre}</h2><Tabla rows={rankingCategoria(data, categoria.id, modo)} clubes={data.clubes} /><Firmas jueces={data.jueces} /></article>)}
       <article className="sheet"><h2>Premiación final por clubes</h2><Rankings data={data} modo={modo} /></article>
     </main>
   )
@@ -1001,7 +1467,7 @@ function Competidor({ actual, total }) {
   return (
     <section className="competidor">
       <Avatar src={actual.patinadora?.foto} label={actual.patinadora?.nombre} color={actual.club?.color} />
-      <div><small>{actual.categoria?.nombre}</small><h2>{actual.patinadora?.nombre}</h2><p>{actual.club?.nombre} - {actual.tecnica?.nombre || 'Sin técnica'} - {actual.patinadora?.edad || '-'} años</p></div>
+      <div><small>{actual.categoria?.nombre}</small><h2>{actual.patinadora?.nombre}</h2><p>{actual.club?.nombre} - {actual.tecnica?.nombre || 'Sin técnica'} - {actual.patinadora?.edad || '-'} años - {actual.patinadora?.dia} {actual.patinadora?.turno} salida {actual.patinadora?.ordenSalida || actual.patinadora?.orden}</p></div>
       <strong>{total == null ? '--' : total.toFixed(2)}</strong>
     </section>
   )
@@ -1022,6 +1488,60 @@ function Avatar({ src, label, color = '#22c55e' }) {
 
 function Panel({ title, children }) {
   return <section className="panel"><h2>{title}</h2>{children}</section>
+}
+
+function StatusInfo({ clima }) {
+  const [horaBase, setHoraBase] = useState({ date: new Date(), source: 'equipo' })
+  const [now, setNow] = useState(new Date())
+  const [weather, setWeather] = useState('')
+
+  useEffect(() => {
+    let active = true
+    fetch('https://worldtimeapi.org/api/ip')
+      .then((response) => response.ok ? response.json() : null)
+      .then((json) => {
+        if (!active || !json?.datetime) return
+        setHoraBase({ date: new Date(json.datetime), source: 'internet' })
+        setNow(new Date(json.datetime))
+      })
+      .catch(() => {
+        if (active) setHoraBase({ date: new Date(), source: 'equipo' })
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    const startedAt = Date.now()
+    const timer = setInterval(() => {
+      setNow(new Date(horaBase.date.getTime() + (Date.now() - startedAt)))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [horaBase])
+
+  useEffect(() => {
+    if (!clima || !navigator.geolocation) {
+      return
+    }
+    navigator.geolocation.getCurrentPosition((position) => {
+      const { latitude, longitude } = position.coords
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m`)
+        .then((response) => response.ok ? response.json() : null)
+        .then((json) => {
+          const current = json?.current
+          setWeather(current ? `${Math.round(current.temperature_2m)}°C - viento ${Math.round(current.wind_speed_10m)} km/h` : 'Clima no disponible')
+        })
+        .catch(() => setWeather('Clima no disponible'))
+    }, () => setWeather('Clima no disponible'), { timeout: 5000 })
+  }, [clima])
+
+  return (
+    <aside className="status-info">
+      <strong>{now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</strong>
+      {clima && weather && <small>{weather}</small>}
+    </aside>
+  )
 }
 
 function Timer({ hasta }) {

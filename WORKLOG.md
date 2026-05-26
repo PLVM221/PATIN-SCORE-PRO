@@ -24,3 +24,17 @@
 | 11:30 | feat(admin): editores de clubes/profesoras/patinadoras con OK, carga manual y textos de logo/foto |
 | 11:39 | feat(judges): Enter avanza campo, lista próximas, fin de categoría con siguiente/receso y receso automático en pública |
 | 11:34 | feat(judges): Enter guarda sin publicar, publicación solo clic y muestra próxima patinadora |
+| 11:52 | feat(eventos): configuración de evento, turnos por día, orden de salida, reportes imprimibles, hora online/fallback y clima en operador |
+| 11:53 | test: npm.cmd run lint OK, npm.cmd run build OK |
+| 12:02 | feat(datos): carga manual simplificada y orden de categorías por día/turno vía Excel o formulario |
+| 12:03 | test: npm.cmd run lint OK, npm.cmd run build OK |
+| 12:10 | feat(tv): tanteador público en filas compactas con parciales, total y paginación automática |
+| 12:11 | test: npm.cmd run lint OK, npm.cmd run build OK |
+| 12:18 | feat(datos): confirmación OK en cargas manuales y configuración de datos |
+| 12:19 | test: npm.cmd run lint OK, npm.cmd run build OK |
+| 12:23 | feat(reportes): orden fijo por día, turno, categoría y orden de ingreso |
+| 12:24 | test: npm.cmd run lint OK, npm.cmd run build OK |
+| 12:29 | feat(receso): demora configurable antes de pantalla de receso y rediseño TV con datos completos |
+| 12:30 | test: npm.cmd run lint OK, npm.cmd run build OK |
+| 12:35 | feat(branding): escudo del club organizador en cabecera y pantalla de receso con torneo/liga/club |
+| 12:36 | test: npm.cmd run lint OK, npm.cmd run build OK |
