@@ -40,3 +40,5 @@
 | 12:36 | test: npm.cmd run lint OK, npm.cmd run build OK |
 | 12:48 | feat(sql): servidor Node con SQLite, API de estado, fallback localStorage y proxy Vite |
 | 12:49 | test: npm.cmd run lint OK, npm.cmd run build OK, /api/health OK |
+| 09:48 | feat(app): mejoras de operador, jueces, prueba de pista, buffet web, usuarios y reportes agrupados |
+| 09:49 | test: npm.cmd run lint OK, npm.cmd run build OK |

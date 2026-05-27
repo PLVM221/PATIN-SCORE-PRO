@@ -9,10 +9,12 @@ const demo = {
     id: 't1',
     nombre: 'Copa Ciudad 2026',
     liga: 'Liga Metropolitana',
+    ligaLogo: '',
     clubOrganizadorId: 'cl1',
     sede: 'Polideportivo Central',
     fechaDesde: '2026-05-26',
     fechaHasta: '2026-05-27',
+    horarioInicio: '09:00',
     turnosPorDia: 2,
     turnos: ['Mañana', 'Tarde'],
   }],
@@ -46,6 +48,16 @@ const demo = {
     { id: 'experience', nombre: 'Experience', archivo: '' },
     { id: 'heroes', nombre: 'Heroes', archivo: '' },
   ],
+  buffet: [
+    { id: 'bf1', producto: 'Agua', precio: 1200 },
+    { id: 'bf2', producto: 'Café', precio: 1000 },
+    { id: 'bf3', producto: 'Sándwich', precio: 2500 },
+  ],
+  usuarios: [
+    { id: 'admin', nombre: 'Admin', tabs: tabsBase() },
+    { id: 'operador', nombre: 'Operador', tabs: ['Operador', 'Pública LED', 'Web pública', 'Reportes', 'Tanteador'] },
+    { id: 'jueces', nombre: 'Jueces', tabs: ['Jueces'] },
+  ],
   patinadoras: [
     { id: 'p1', orden: 1, ordenSalida: 1, dia: '2026-05-26', turno: 'Mañana', estado: 'pendiente', nombre: 'Sofia Benitez', edad: 10, clubId: 'cl1', tecnicaId: 'te1', categoriaId: 'c1', musicaId: 'libertango', musica: 'Libertango', audio: '', foto: '' },
     { id: 'p2', orden: 2, ordenSalida: 2, dia: '2026-05-26', turno: 'Mañana', estado: 'pendiente', nombre: 'Martina Lagos', edad: 11, clubId: 'cl2', tecnicaId: 'te2', categoriaId: 'c1', musicaId: 'cinema-paradiso', musica: 'Cinema Paradiso', audio: '', foto: '' },
@@ -65,13 +77,19 @@ const basePista = {
   recesoMin: 5,
   demoraRecesoSeg: 60,
   recesoHasta: null,
+  pruebaPistaMin: 5,
+  pruebaPistaHasta: null,
   puntajeHasta: null,
   puntajePatinadoraId: null,
   categoriaFinalHasta: null,
   autoRecesoHasta: null,
 }
 
-const tabs = ['Operador', 'Jueces', 'Pública LED', 'Datos', 'Web pública', 'Reportes', 'Tanteador', 'Ranking clubes', 'Actas', 'Registros']
+const tabs = tabsBase()
+
+function tabsBase() {
+  return ['Operador', 'Jueces', 'Pública LED', 'Datos', 'Web pública', 'Reportes', 'Tanteador', 'Ranking clubes', 'Actas', 'Registros']
+}
 
 function loadData() {
   try {
@@ -87,13 +105,17 @@ function normalizeData(data) {
     ...data,
     torneos: (data.torneos || demo.torneos).map((torneo) => ({
       liga: '',
+      ligaLogo: '',
       clubOrganizadorId: '',
       fechaDesde: torneo.fecha || new Date().toISOString().slice(0, 10),
       fechaHasta: torneo.fecha || new Date().toISOString().slice(0, 10),
+      horarioInicio: '',
       turnosPorDia: 1,
       turnos: ['Único'],
       ...torneo,
     })),
+    buffet: data.buffet || demo.buffet,
+    usuarios: data.usuarios || demo.usuarios,
     categorias: (data.categorias || demo.categorias).map((item, index) => ({
       dia: data.torneos?.[0]?.fechaDesde || data.torneos?.[0]?.fecha || '',
       turno: data.torneos?.[0]?.turnos?.[0] || 'Único',
@@ -312,6 +334,7 @@ export default function App() {
   const [pista, setPista] = useState(basePista)
   const [tab, setTab] = useState('Operador')
   const [juezId, setJuezId] = useState('j1')
+  const [usuarioId, setUsuarioId] = useState('admin')
   const [persistencia, setPersistencia] = useState('localStorage')
   const audioRef = useRef(null)
   const sqlActivoRef = useRef(false)
@@ -409,6 +432,8 @@ export default function App() {
     .sort(compararSalida)
   const totalActual = totalPuntaje(actual.puntaje, pista.modo, data.conceptosPuntaje)
   const clubOrganizador = data.clubes.find((club) => club.id === actual.torneo?.clubOrganizadorId)
+  const usuarioActual = data.usuarios.find((item) => item.id === usuarioId) || data.usuarios[0]
+  const tabsVisibles = tabs.filter((item) => usuarioActual?.tabs?.includes(item))
 
   if (esVistaWeb) {
     return <VistaWeb data={data} modo={pista.modo} />
@@ -460,16 +485,25 @@ export default function App() {
     const AudioContext = window.AudioContext || window.webkitAudioContext
     const ctx = new AudioContext()
     const osc = ctx.createOscillator()
+    const osc2 = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.type = 'square'
-    osc.frequency.value = 1650
+    osc2.type = 'square'
+    osc.frequency.setValueAtTime(2200, ctx.currentTime)
+    osc.frequency.exponentialRampToValueAtTime(1800, ctx.currentTime + 0.18)
+    osc2.frequency.setValueAtTime(2480, ctx.currentTime)
+    osc2.frequency.exponentialRampToValueAtTime(2050, ctx.currentTime + 0.18)
     gain.gain.setValueAtTime(0.001, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.45, ctx.currentTime + 0.03)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55)
+    gain.gain.exponentialRampToValueAtTime(0.55, ctx.currentTime + 0.02)
+    gain.gain.setValueAtTime(0.55, ctx.currentTime + 0.24)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
     osc.connect(gain)
+    osc2.connect(gain)
     gain.connect(ctx.destination)
     osc.start()
-    osc.stop(ctx.currentTime + 0.6)
+    osc2.start()
+    osc.stop(ctx.currentTime + 0.52)
+    osc2.stop(ctx.currentTime + 0.52)
     log('Silbato')
   }
 
@@ -540,6 +574,20 @@ export default function App() {
       autoRecesoHasta: null,
     }))
     log(`Receso ${duration} min`)
+  }
+
+  function iniciarPruebaPista(minutos) {
+    const duration = Math.max(1, Number(minutos) || 1)
+    setPista((prev) => ({
+      ...prev,
+      pruebaPistaMin: duration,
+      estado: 'Probando pista',
+      pruebaPistaHasta: Date.now() + duration * 60000,
+      recesoHasta: null,
+      categoriaFinalHasta: null,
+      autoRecesoHasta: null,
+    }))
+    log(`Prueba de pista ${duration} min`)
   }
 
   function marcarAusente() {
@@ -737,13 +785,28 @@ export default function App() {
     }, `Categorías importadas: ${file.name}`)
   }
 
+  async function importarJueces(file) {
+    if (!file) return
+    const rows = await readSheetRows(file)
+    mutate((draft) => {
+      rows.forEach((row) => {
+        const nombre = cell(row, ['Juez', 'Nombre'])
+        if (!nombre) return
+        const rol = cell(row, ['Rol', 'Tipo']) || 'General'
+        const existente = draft.jueces.find((item) => slug(item.nombre) === slug(nombre))
+        if (existente) existente.rol = rol
+        else draft.jueces.push({ id: id('juez'), nombre, rol })
+      })
+    }, `Jueces importados: ${file.name}`)
+  }
+
   return (
     <div className="app">
       <header className="top">
         <div>
           <span>Patín Score Pro</span>
           <h1>{actual.torneo?.nombre}</h1>
-          <p>{actual.torneo?.liga} - {clubOrganizador?.nombre || actual.torneo?.sede} - {actual.torneo?.fechaDesde} al {actual.torneo?.fechaHasta}</p>
+          <p>{actual.torneo?.liga} - {actual.torneo?.sede} - {actual.torneo?.fechaDesde} al {actual.torneo?.fechaHasta} - inicio {actual.torneo?.horarioInicio || '-'}</p>
         </div>
         <div className="organizer-crest">
           <Avatar src={clubOrganizador?.logo} label={clubOrganizador?.nombre} color={clubOrganizador?.color} />
@@ -753,15 +816,18 @@ export default function App() {
       </header>
 
       <nav className="tabs">
-        {tabs.map((item) => <button className={tab === item ? 'active' : ''} key={item} onClick={() => setTab(item)}>{item}</button>)}
+        {tabsVisibles.map((item) => <button className={tab === item ? 'active' : ''} key={item} onClick={() => setTab(item)}>{item}</button>)}
       </nav>
 
       {tab === 'Operador' && (
         <main className="grid two">
+          <Panel title="Evento">
+            <ConfigEvento data={data} mutate={mutate} />
+          </Panel>
           <Panel title="Pista">
             <div className="fields">
               <label>Categoría<select value={pista.categoriaId} onChange={(e) => cambiarCategoria(e.target.value)}>{[...data.categorias].sort(compararCategoria).map((item) => <option key={item.id} value={item.id}>{item.dia} {item.turno} - {item.orden}. {item.nombre}</option>)}</select></label>
-              <label>Patinadora<select value={pista.patinadoraId} onChange={(e) => setPista({ ...pista, patinadoraId: e.target.value })}>{patinadorasCategoria.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
+              <label>Patinadora<select value={pista.patinadoraId} onChange={(e) => setPista({ ...pista, patinadoraId: e.target.value })}>{patinadorasCategoria.map((item) => <option key={item.id} value={item.id}>{item.dia} {item.turno} - {item.ordenSalida || item.orden}. {item.nombre}</option>)}</select></label>
               <label>Modo<select value={pista.modo} onChange={(e) => setPista({ ...pista, modo: e.target.value })}><option value="jueces">Varios jueces</option><option value="consenso">Consensuado</option></select></label>
               <label>Receso minutos<input type="number" min="1" value={pista.recesoMin} onChange={(e) => setPista({ ...pista, recesoMin: e.target.value })} /></label>
               <label>Demora antes del receso<input type="number" min="0" value={pista.demoraRecesoSeg} onChange={(e) => setPista({ ...pista, demoraRecesoSeg: e.target.value })} /></label>
@@ -796,9 +862,9 @@ export default function App() {
         </main>
       )}
 
-      {tab === 'Jueces' && <Jueces data={data} pista={pista} actual={actual} juezId={juezId} setJuezId={setJuezId} actualizarPuntaje={actualizarPuntaje} publicarPuntaje={publicarPuntaje} pasarSiguienteCategoria={pasarSiguienteCategoria} iniciarReceso={iniciarRecesoDesdeJuez} />}
+      {tab === 'Jueces' && <Jueces data={data} pista={pista} actual={actual} juezId={juezId} setJuezId={setJuezId} actualizarPuntaje={actualizarPuntaje} publicarPuntaje={publicarPuntaje} pasarSiguienteCategoria={pasarSiguienteCategoria} iniciarReceso={iniciarRecesoDesdeJuez} iniciarPruebaPista={iniciarPruebaPista} silbato={silbato} marcarAusente={marcarAusente} postergar={postergar} />}
       {tab === 'Pública LED' && <Publica pista={pista} actual={actual} total={totalActual} data={data} modo={pista.modo} />}
-      {tab === 'Datos' && <Datos data={data} mutate={mutate} guardarArchivo={guardarArchivo} importarListado={importarListado} cargarCanciones={cargarCanciones} importarClubes={importarClubes} importarTecnicas={importarTecnicas} importarCategorias={importarCategorias} />}
+      {tab === 'Datos' && <Datos data={data} mutate={mutate} guardarArchivo={guardarArchivo} importarListado={importarListado} cargarCanciones={cargarCanciones} importarClubes={importarClubes} importarTecnicas={importarTecnicas} importarCategorias={importarCategorias} importarJueces={importarJueces} />}
       {tab === 'Web pública' && <WebPublica data={data} modo={pista.modo} />}
       {tab === 'Reportes' && <Reportes data={data} />}
       {tab === 'Tanteador' && <Tanteador data={data} categoriaId={pista.categoriaId} modo={pista.modo} />}
@@ -808,15 +874,17 @@ export default function App() {
 
       <footer>
         <button className="ghost danger" onClick={() => { localStorage.removeItem(STORAGE_KEY); setData(demo); setPista(basePista) }}>Reiniciar demo</button>
+        <label className="user-select">Usuario<select value={usuarioId} onChange={(event) => { setUsuarioId(event.target.value); setTab((data.usuarios.find((item) => item.id === event.target.value)?.tabs || tabs)[0]) }}>{data.usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.nombre}</option>)}</select></label>
         <span>Persistencia {persistencia}.</span>
       </footer>
     </div>
   )
 }
 
-function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, publicarPuntaje, pasarSiguienteCategoria, iniciarReceso }) {
+function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, publicarPuntaje, pasarSiguienteCategoria, iniciarReceso, iniciarPruebaPista, silbato, marcarAusente, postergar }) {
   const puntaje = actual.puntaje || { jueces: {} }
   const [minutosReceso, setMinutosReceso] = useState(pista.recesoMin || 5)
+  const [minutosPrueba, setMinutosPrueba] = useState(pista.pruebaPistaMin || 5)
   const miPuntaje = puntaje.jueces[juezId] || {}
   const totalTecnico = totalPuntaje(puntaje, pista.modo, data.conceptosPuntaje)
   const patinadorasOrdenadas = data.patinadoras
@@ -825,7 +893,7 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
   const indiceActual = patinadorasOrdenadas.findIndex((item) => item.id === actual.patinadora?.id)
   const proxima = patinadorasOrdenadas[indiceActual + 1]
   const proximaClub = data.clubes.find((item) => item.id === proxima?.clubId)
-  const pendientesPista = patinadorasOrdenadas.slice(Math.max(indiceActual + 1, 0))
+  const pendientesPista = patinadorasOrdenadas
   const tieneValor = pista.modo === 'consenso'
     ? Object.values(puntaje.consensoConceptos || {}).some((valor) => valor !== '')
     : Object.values(miPuntaje.conceptos || {}).some((valor) => valor !== '')
@@ -889,13 +957,20 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
           <button className="primary" disabled={!tieneValor || actual.puntaje?.confirmado} onClick={publicarPuntaje}>Publicar puntaje</button>
           <span>{actual.puntaje?.confirmado ? 'Publicado' : tieneValor ? 'Listo para publicar' : 'Esperando puntuación'}</span>
         </div>
+        <div className="judge-actions">
+          <button onClick={silbato}>Silbato</button>
+          <button className="danger" onClick={marcarAusente}>No se presentó</button>
+          <button onClick={postergar}>Postergar al final</button>
+          <label>Minutos prueba pista<input type="number" min="1" value={minutosPrueba} onChange={(event) => setMinutosPrueba(event.target.value)} /></label>
+          <button className="primary" onClick={() => iniciarPruebaPista(minutosPrueba)}>Probando pista</button>
+        </div>
         <div className="next-skater">
           <span>Se prepara</span>
           <strong>{proxima?.nombre || 'Última patinadora de la categoría'}</strong>
           {proxima && <small>{proximaClub?.nombre} - {proxima.dia} - {proxima.turno} - salida {proxima.ordenSalida || proxima.orden}</small>}
         </div>
         <div className="warmup-list">
-          <span>Próximas para ingresar a pista</span>
+          <span>Se preparan</span>
           {pendientesPista.length ? pendientesPista.map((item) => (
             <div key={item.id}>{item.ordenSalida || item.orden}. {item.nombre} - {item.turno}</div>
           )) : <div>Sin patinadoras pendientes en esta categoría</div>}
@@ -936,6 +1011,7 @@ function Publica({ pista, actual, total, data, modo }) {
   }, [])
 
   const mostrandoPuntaje = pista.puntajeHasta && now < pista.puntajeHasta && pista.puntajePatinadoraId
+  const mostrandoPrueba = pista.pruebaPistaHasta && now < pista.pruebaPistaHasta
   const mostrandoRecesoAuto = pista.categoriaFinalHasta && pista.autoRecesoHasta && now >= pista.categoriaFinalHasta && now < pista.autoRecesoHasta
   const patinadoraPuntaje = data.patinadoras.find((item) => item.id === pista.puntajePatinadoraId)
   const clubPuntaje = data.clubes.find((item) => item.id === patinadoraPuntaje?.clubId)
@@ -944,17 +1020,19 @@ function Publica({ pista, actual, total, data, modo }) {
   const proximaCategoria = siguienteCategoria(data, pista.categoriaId)
   const clubOrganizador = data.clubes.find((club) => club.id === actual.torneo?.clubOrganizadorId)
 
+  if (mostrandoPrueba) {
+    return <PausaPantalla tipo="Probando pista" actual={actual} hasta={pista.pruebaPistaHasta} detalle="Se preparan para competir" extra={`Primera patinadora: ${actual.patinadora?.nombre || '-'}`} />
+  }
+
   if (pista.estado === 'Receso' || mostrandoRecesoAuto) {
     return (
       <main className="break-screen">
+        {actual.torneo?.ligaLogo && <img className="league-logo" src={actual.torneo.ligaLogo} alt={actual.torneo?.liga || 'Liga'} />}
         <section>
-          <span>{actual.torneo?.liga}</span>
           <div className="break-crest">
             <Avatar src={clubOrganizador?.logo} label={clubOrganizador?.nombre} color={clubOrganizador?.color} />
           </div>
           <h2>Receso</h2>
-          <p>{actual.torneo?.nombre}</p>
-          <small>{clubOrganizador?.nombre || 'Club organizador'}</small>
         </section>
         <div className="break-timer">
           {recesoHasta ? <Timer hasta={recesoHasta} /> : <b>--:--</b>}
@@ -999,6 +1077,28 @@ function Publica({ pista, actual, total, data, modo }) {
       </div>
       <strong>{total == null ? '--' : total.toFixed(2)}</strong>
       <em>{pista.estado}</em>
+    </main>
+  )
+}
+
+function PausaPantalla({ tipo, actual, hasta, detalle, extra }) {
+  return (
+    <main className="break-screen practice-screen">
+      <section>
+        <span>{actual.torneo?.nombre}</span>
+        <h2>{tipo}</h2>
+        <p>{actual.categoria?.nombre}</p>
+        <small>{detalle}</small>
+      </section>
+      <div className="break-timer">
+        <Timer hasta={hasta} />
+        <small>Cuenta regresiva</small>
+      </div>
+      <div className="break-info">
+        <div><span>Categoría</span><strong>{actual.categoria?.nombre || '-'}</strong></div>
+        <div><span>Inicio de competencia</span><strong>{extra}</strong></div>
+        <div><span>Estado</span><strong>{tipo}</strong></div>
+      </div>
     </main>
   )
 }
@@ -1054,7 +1154,7 @@ function TanteadorLed({ categoria, rows, clubes, data, modo }) {
   )
 }
 
-function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones, importarClubes, importarTecnicas, importarCategorias }) {
+function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones, importarClubes, importarTecnicas, importarCategorias, importarJueces }) {
   return (
     <main className="grid admin-grid">
       <Panel title="Configurar evento">
@@ -1082,6 +1182,12 @@ function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones,
         <div className="import-box">
           <p>Columnas: Profesora o Técnica o Nombre. Opcional: Club.</p>
           <label>Excel o CSV<input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => importarTecnicas(e.target.files[0])} /></label>
+        </div>
+      </Panel>
+      <Panel title="Importar jueces">
+        <div className="import-box">
+          <p>Columnas: Juez o Nombre. Opcional: Rol.</p>
+          <label>Excel o CSV<input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => importarJueces(e.target.files[0])} /></label>
         </div>
       </Panel>
       <Panel title="Cargar canciones">
@@ -1112,6 +1218,15 @@ function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones,
       </Panel>
       <Panel title="Orden de categorías">
         <OrdenCategorias data={data} mutate={mutate} />
+      </Panel>
+      <Panel title="Jueces">
+        <EditorJueces data={data} mutate={mutate} />
+      </Panel>
+      <Panel title="Buffet">
+        <ConfigBuffet data={data} mutate={mutate} />
+      </Panel>
+      <Panel title="Usuarios">
+        <ConfigUsuarios data={data} mutate={mutate} />
       </Panel>
       <Panel title="Patinadoras">
         <EditorPatinadoras data={data} mutate={mutate} guardarArchivo={guardarArchivo} />
@@ -1163,6 +1278,17 @@ function ConfigEvento({ data, mutate }) {
     reader.readAsDataURL(file)
   }
 
+  function cargarLogoLiga(file) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      mutate((draft) => {
+        draft.torneos[0].ligaLogo = reader.result
+      }, 'Logo de liga cargado')
+    }
+    reader.readAsDataURL(file)
+  }
+
   return (
     <div className="event-config">
       <div className="fields">
@@ -1172,7 +1298,9 @@ function ConfigEvento({ data, mutate }) {
         <label>Sede<input value={torneo.sede || ''} onChange={(event) => cambiar('sede', event.target.value)} /></label>
         <label>Fecha desde<input type="date" value={torneo.fechaDesde || ''} onChange={(event) => cambiar('fechaDesde', event.target.value)} /></label>
         <label>Fecha hasta<input type="date" value={torneo.fechaHasta || ''} onChange={(event) => cambiar('fechaHasta', event.target.value)} /></label>
+        <label>Horario de inicio<input type="time" value={torneo.horarioInicio || ''} onChange={(event) => cambiar('horarioInicio', event.target.value)} /></label>
         <label>Turnos por día<input type="number" min="1" max="4" value={torneo.turnosPorDia || 1} onChange={(event) => cambiarTurnos(event.target.value)} /></label>
+        <label>Logo liga<input type="file" accept="image/*" onChange={(event) => cargarLogoLiga(event.target.files[0])} /></label>
         <label>Escudo club organizador<input type="file" accept="image/*" onChange={(event) => cargarEscudoOrganizador(event.target.files[0])} /></label>
       </div>
       <div className="turnos-config">
@@ -1392,6 +1520,12 @@ function Reportes({ data }) {
   ]
   const rows = [...data.patinadoras]
     .sort((a, b) => compararReporte(data, a, b))
+  const grupos = rows.reduce((acc, row) => {
+    const key = `${row.dia}|${row.turno}|${row.categoriaId}`
+    if (!acc[key]) acc[key] = { dia: row.dia, turno: row.turno, categoria: nombreCategoria(data, row.categoriaId), rows: [] }
+    acc[key].rows.push(row)
+    return acc
+  }, {})
 
   function valorCampo(row, campo) {
     if (campo === 'club') return nombreClub(data, row.clubId)
@@ -1413,16 +1547,105 @@ function Reportes({ data }) {
           ))}
           <button onClick={() => window.print()}>Imprimir reporte</button>
         </div>
-        <table>
-          <thead><tr>{activos.map(([, label]) => <th key={label}>{label}</th>)}</tr></thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>{activos.map(([campo]) => <td key={campo}>{valorCampo(row, campo)}</td>)}</tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="report-groups">
+          {Object.values(grupos).map((grupo) => (
+            <section key={`${grupo.dia}-${grupo.turno}-${grupo.categoria}`} className="report-group">
+              <header>
+                <span>{grupo.dia}</span>
+                <span>{grupo.turno}</span>
+                <strong>{grupo.categoria}</strong>
+              </header>
+              <table>
+                <thead><tr>{activos.map(([, label]) => <th key={label}>{label}</th>)}</tr></thead>
+                <tbody>
+                  {grupo.rows.map((row) => (
+                    <tr key={row.id}>{activos.map(([campo]) => <td key={campo}>{valorCampo(row, campo)}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          ))}
+        </div>
       </Panel>
     </main>
+  )
+}
+
+function EditorJueces({ mutate }) {
+  const [form, setForm] = useState({ nombre: '', rol: 'General' })
+  const [ok, setOk] = useState(false)
+  function agregar() {
+    if (!form.nombre.trim()) return
+    mutate((draft) => {
+      draft.jueces.push({ id: id('juez'), nombre: form.nombre.trim(), rol: form.rol || 'General' })
+    }, `Juez agregado: ${form.nombre}`)
+    setOk(true)
+    window.setTimeout(() => setOk(false), 1300)
+    setForm({ nombre: '', rol: 'General' })
+  }
+  return (
+    <div className="entity-add manual-only">
+      <input placeholder="Nombre del juez" value={form.nombre} onChange={(event) => setForm((prev) => ({ ...prev, nombre: event.target.value }))} />
+      <input placeholder="Rol" value={form.rol} onChange={(event) => setForm((prev) => ({ ...prev, rol: event.target.value }))} />
+      <button className="ok-button" onClick={agregar}>{ok ? 'OK ✓' : 'OK'}</button>
+    </div>
+  )
+}
+
+function ConfigBuffet({ data, mutate }) {
+  const [form, setForm] = useState({ producto: '', precio: '' })
+  const [ok, setOk] = useState(false)
+  function agregar() {
+    if (!form.producto.trim()) return
+    mutate((draft) => {
+      draft.buffet.push({ id: id('buffet'), producto: form.producto.trim(), precio: Number(form.precio) || 0 })
+    }, `Buffet agregado: ${form.producto}`)
+    setOk(true)
+    window.setTimeout(() => setOk(false), 1300)
+    setForm({ producto: '', precio: '' })
+  }
+  return (
+    <div className="buffet-config">
+      <div className="entity-add manual-only">
+        <input placeholder="Producto" value={form.producto} onChange={(event) => setForm((prev) => ({ ...prev, producto: event.target.value }))} />
+        <input type="number" min="0" placeholder="Valor" value={form.precio} onChange={(event) => setForm((prev) => ({ ...prev, precio: event.target.value }))} />
+        <button className="ok-button" onClick={agregar}>{ok ? 'OK ✓' : 'OK'}</button>
+      </div>
+      <div className="mini-list">{data.buffet.map((item) => <div key={item.id}><span>{item.producto}</span><strong>${Number(item.precio || 0).toLocaleString('es-AR')}</strong></div>)}</div>
+    </div>
+  )
+}
+
+function ConfigUsuarios({ data, mutate }) {
+  const [nombre, setNombre] = useState('')
+  function toggle(usuarioId, tabName, checked) {
+    mutate((draft) => {
+      const usuario = draft.usuarios.find((item) => item.id === usuarioId)
+      usuario.tabs = checked ? [...new Set([...usuario.tabs, tabName])] : usuario.tabs.filter((item) => item !== tabName)
+    }, 'Permisos de usuario actualizados')
+  }
+  function agregar() {
+    if (!nombre.trim()) return
+    mutate((draft) => {
+      draft.usuarios.push({ id: id('user'), nombre: nombre.trim(), tabs: ['Operador'] })
+    }, `Usuario agregado: ${nombre}`)
+    setNombre('')
+  }
+  return (
+    <div className="user-config">
+      {data.usuarios.map((usuario) => (
+        <div key={usuario.id}>
+          <strong>{usuario.nombre}</strong>
+          <div>
+            {tabs.map((tabName) => <label className="check-line" key={tabName}><input type="checkbox" checked={usuario.tabs.includes(tabName)} onChange={(event) => toggle(usuario.id, tabName, event.target.checked)} />{tabName}</label>)}
+          </div>
+        </div>
+      ))}
+      <div className="entity-add">
+        <input placeholder="Nuevo usuario" value={nombre} onChange={(event) => setNombre(event.target.value)} />
+        <button onClick={agregar}>OK</button>
+      </div>
+    </div>
   )
 }
 
@@ -1452,16 +1675,24 @@ function WebPublica({ data, modo }) {
 function VistaWeb({ data, modo, compacto = false }) {
   const categorias = [...data.categorias].sort(compararCategoria)
   const [categoriaId, setCategoriaId] = useState(categorias[0]?.id || '')
+  const [verBuffet, setVerBuffet] = useState(false)
   const categoria = categorias.find((item) => item.id === categoriaId) || categorias[0]
   const rows = rankingCategoria(data, categoria?.id || '', modo).filter((row) => row.confirmado && row.total != null)
 
   return (
     <main className={compacto ? 'web-score compact' : 'web-score'}>
       <header>
+        <button className="buffet-button" onClick={() => setVerBuffet((prev) => !prev)}>Buffet</button>
         <span>Tanteador online</span>
         <h1>{data.torneos[0]?.nombre}</h1>
         <label>Categoría<select value={categoria?.id || ''} onChange={(event) => setCategoriaId(event.target.value)}>{categorias.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
       </header>
+      {verBuffet && (
+        <section className="buffet-web">
+          <h2>Buffet</h2>
+          <div>{data.buffet.map((item) => <article key={item.id}><span>{item.producto}</span><strong>${Number(item.precio || 0).toLocaleString('es-AR')}</strong></article>)}</div>
+        </section>
+      )}
       <section>
         <h2>{categoria?.nombre}</h2>
         {rows.length ? (

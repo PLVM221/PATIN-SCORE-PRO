@@ -219,6 +219,14 @@ footer {
   margin: 0 auto;
 }
 
+.judge-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+  align-items: end;
+}
+
 .judge-head {
   display: grid;
   grid-template-columns: 260px 1fr;
@@ -566,6 +574,7 @@ audio {
 }
 
 .break-screen {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 0.42fr);
   gap: clamp(18px, 3vw, 36px);
@@ -579,6 +588,19 @@ audio {
     radial-gradient(circle at 86% 34%, rgba(122, 247, 180, 0.14) 0, transparent 28%),
     linear-gradient(135deg, #021006, #061d0f 52%, #020604);
   box-shadow: inset 0 0 95px rgba(40, 230, 122, 0.1), 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+.league-logo {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: clamp(64px, 7vw, 100px);
+  height: clamp(64px, 7vw, 100px);
+  object-fit: contain;
+  padding: 8px;
+  border: 1px solid rgba(40, 230, 122, 0.28);
+  border-radius: 8px;
+  background: rgba(2, 9, 6, 0.74);
 }
 
 .break-screen section {
@@ -648,7 +670,7 @@ audio {
 
 .break-timer b {
   color: #8affbd;
-  font-size: clamp(3.4rem, 8vw, 7rem);
+  font-size: clamp(4.2rem, 10vw, 8.5rem);
   font-weight: 950;
   line-height: 1;
   text-shadow: 0 0 28px rgba(40, 230, 122, 0.56);
@@ -901,6 +923,99 @@ audio {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
   margin-bottom: 16px;
+}
+
+.report-groups {
+  display: grid;
+  gap: 20px;
+}
+
+.report-group {
+  overflow: hidden;
+  border: 1px solid rgba(40, 230, 122, 0.26);
+  border-radius: 8px;
+  background: #020906;
+}
+
+.report-group header {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.25fr) minmax(110px, 0.25fr) 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-bottom: 1px solid rgba(40, 230, 122, 0.24);
+  background: #06140c;
+  text-align: center;
+}
+
+.report-group header span {
+  color: var(--muted);
+  font-weight: 950;
+}
+
+.report-group header strong {
+  color: #ecfdf5;
+  font-size: 1.2rem;
+}
+
+.report-group table {
+  background: #fff;
+  color: #111827;
+}
+
+.buffet-config,
+.user-config {
+  display: grid;
+  gap: 12px;
+}
+
+.mini-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mini-list div,
+.buffet-web article {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(40, 230, 122, 0.18);
+  border-radius: 8px;
+  background: #020906;
+}
+
+.user-config > div {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(40, 230, 122, 0.18);
+  border-radius: 8px;
+}
+
+.user-config > div > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.user-select {
+  width: min(220px, 100%);
+}
+
+.buffet-button {
+  justify-self: start;
+  min-height: 40px;
+  padding: 8px 14px;
+}
+
+.buffet-web {
+  margin-bottom: 14px;
+}
+
+.buffet-web div {
+  display: grid;
+  gap: 8px;
 }
 
 .qr-box {
