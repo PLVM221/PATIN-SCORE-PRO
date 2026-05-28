@@ -42,3 +42,7 @@
 | 12:49 | test: npm.cmd run lint OK, npm.cmd run build OK, /api/health OK |
 | 09:48 | feat(app): mejoras de operador, jueces, prueba de pista, buffet web, usuarios y reportes agrupados |
 | 09:49 | test: npm.cmd run lint OK, npm.cmd run build OK |
+| 10:05 | style(tv): prueba de pista centrada con listado de patinadoras, web pública con pantalla/buffet/volver y feedback de botones |
+| 10:06 | test: npm.cmd run lint OK, npm.cmd run build OK |
+| 10:12 | feat(web): pantalla pública web muestra receso/prueba de pista con cuenta regresiva y listado |
+| 10:13 | test: npm.cmd run lint OK, npm.cmd run build OK |

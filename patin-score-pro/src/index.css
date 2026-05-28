@@ -55,6 +55,14 @@ button:hover {
   background: linear-gradient(180deg, #1c5a33, #0d2c1a);
 }
 
+button:active {
+  transform: translateY(1px) scale(0.98);
+  border-color: #8affbd;
+  background: linear-gradient(180deg, #28e67a, #0f8f4b);
+  color: #03120a;
+  box-shadow: 0 0 22px rgba(40, 230, 122, 0.36);
+}
+
 input,
 select,
 textarea {

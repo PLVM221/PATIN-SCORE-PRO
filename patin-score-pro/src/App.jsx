@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import './App.css'
 
 const STORAGE_KEY = 'patin-score-pro-v1'
+const WHISTLE_SRC = '/sounds/silbato.mp3'
 
 const temasSistema = [
   { id: 'verde', nombre: 'Verde clásico' },
@@ -558,41 +559,7 @@ export default function App() {
   }
 
   function silbato() {
-    const AudioContext = window.AudioContext || window.webkitAudioContext
-    const ctx = new AudioContext()
-    const osc = ctx.createOscillator()
-    const osc2 = ctx.createOscillator()
-    const osc3 = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.type = 'square'
-    osc2.type = 'square'
-    osc3.type = 'sawtooth'
-    osc.frequency.setValueAtTime(3150, ctx.currentTime)
-    osc.frequency.exponentialRampToValueAtTime(2450, ctx.currentTime + 0.12)
-    osc.frequency.setValueAtTime(3000, ctx.currentTime + 0.2)
-    osc.frequency.exponentialRampToValueAtTime(2300, ctx.currentTime + 0.36)
-    osc2.frequency.setValueAtTime(3600, ctx.currentTime)
-    osc2.frequency.exponentialRampToValueAtTime(2800, ctx.currentTime + 0.12)
-    osc2.frequency.setValueAtTime(3450, ctx.currentTime + 0.2)
-    osc2.frequency.exponentialRampToValueAtTime(2600, ctx.currentTime + 0.36)
-    osc3.frequency.setValueAtTime(1800, ctx.currentTime)
-    gain.gain.setValueAtTime(0.001, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.72, ctx.currentTime + 0.015)
-    gain.gain.setValueAtTime(0.72, ctx.currentTime + 0.11)
-    gain.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.15)
-    gain.gain.exponentialRampToValueAtTime(0.74, ctx.currentTime + 0.2)
-    gain.gain.setValueAtTime(0.74, ctx.currentTime + 0.34)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.48)
-    osc.connect(gain)
-    osc2.connect(gain)
-    osc3.connect(gain)
-    gain.connect(ctx.destination)
-    osc.start()
-    osc2.start()
-    osc3.start()
-    osc.stop(ctx.currentTime + 0.5)
-    osc2.stop(ctx.currentTime + 0.5)
-    osc3.stop(ctx.currentTime + 0.5)
+    reproducirSilbato()
     log('Silbato')
   }
 
@@ -656,19 +623,6 @@ export default function App() {
       categoriaFinalHasta: null,
       autoRecesoHasta: null,
     }))
-  }
-
-  function iniciarRecesoDesdeJuez(minutos) {
-    const duration = Math.max(1, Number(minutos) || 1)
-    setPista((prev) => ({
-      ...prev,
-      recesoMin: duration,
-      estado: 'Receso',
-      recesoHasta: Date.now() + duration * 60000,
-      categoriaFinalHasta: null,
-      autoRecesoHasta: null,
-    }))
-    log(`Receso ${duration} min`)
   }
 
   function iniciarPruebaPista(minutos) {
@@ -1018,7 +972,7 @@ export default function App() {
         </main>
       )}
 
-      {tab === 'Jueces' && <Jueces data={data} pista={pista} actual={actual} juezId={juezId} setJuezId={setJuezId} actualizarPuntaje={actualizarPuntaje} publicarPuntaje={publicarPuntaje} pasarSiguienteCategoria={pasarSiguienteCategoria} iniciarReceso={iniciarRecesoDesdeJuez} iniciarPruebaPista={iniciarPruebaPista} silbato={silbato} marcarAusente={marcarAusente} postergar={postergar} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} />}
+      {tab === 'Jueces' && <Jueces data={data} pista={pista} actual={actual} juezId={juezId} setJuezId={setJuezId} actualizarPuntaje={actualizarPuntaje} publicarPuntaje={publicarPuntaje} iniciarPruebaPista={iniciarPruebaPista} silbato={silbato} marcarAusente={marcarAusente} postergar={postergar} />}
       {tab === 'Pública LED' && <main className="screen-wrap"><FullscreenButton targetSelector=".screen-wrap" /><Publica pista={pista} actual={actual} total={totalActual} data={data} modo={pista.modo} iniciarTorneo={iniciarTorneo} /></main>}
       {tab === 'Datos' && <Datos data={data} mutate={mutate} guardarArchivo={guardarArchivo} importarListado={importarListado} cargarCanciones={cargarCanciones} cargarEscudosClubes={cargarEscudosClubes} importarClubes={importarClubes} importarTecnicas={importarTecnicas} importarCategorias={importarCategorias} importarJueces={importarJueces} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} rehabilitarInicioTorneo={rehabilitarInicioTorneo} />}
       {tab === 'Web pública' && <WebPublica data={data} modo={pista.modo} pista={pistaPublica} />}
@@ -1037,11 +991,9 @@ export default function App() {
   )
 }
 
-function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, publicarPuntaje, pasarSiguienteCategoria, iniciarReceso, iniciarPruebaPista, silbato, marcarAusente, postergar, iniciarTorneo, programarInicioTorneo }) {
+function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, publicarPuntaje, iniciarPruebaPista, silbato, marcarAusente, postergar }) {
   const puntaje = actual.puntaje || { jueces: {} }
-  const [minutosReceso, setMinutosReceso] = useState(pista.recesoMin || 5)
   const [minutosPrueba, setMinutosPrueba] = useState(pista.pruebaPistaMin || 5)
-  const [minutosInicio, setMinutosInicio] = useState(5)
   const miPuntaje = puntaje.jueces[juezId] || {}
   const totalTecnico = totalPuntaje(puntaje, pista.modo, data.conceptosPuntaje)
   const patinadorasOrdenadas = data.patinadoras
@@ -1050,7 +1002,8 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
   const indiceActual = patinadorasOrdenadas.findIndex((item) => item.id === actual.patinadora?.id)
   const proxima = patinadorasOrdenadas[indiceActual + 1]
   const proximaClub = data.clubes.find((item) => item.id === proxima?.clubId)
-  const pendientesPista = patinadorasOrdenadas
+  const categoriaSiguiente = siguienteCategoria(data, pista.categoriaId)
+  const mismoTurnoSiguiente = categoriaSiguiente && categoriaSiguiente.dia === actual.categoria?.dia && categoriaSiguiente.turno === actual.categoria?.turno
   const tieneValor = pista.modo === 'consenso'
     ? Object.values(puntaje.consensoConceptos || {}).some((valor) => valor !== '')
     : Object.values(miPuntaje.conceptos || {}).some((valor) => valor !== '')
@@ -1116,13 +1069,9 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
           <span>{actual.puntaje?.confirmado ? 'Publicado' : tieneValor ? 'Listo para publicar' : 'Esperando puntuación'}</span>
         </div>
         <div className="judge-actions">
-          <button className="start-button" disabled={Boolean(data.torneos[0]?.inicioTorneoEn)} onClick={iniciarTorneo}>{data.torneos[0]?.inicioTorneoEn ? 'Torneo iniciado' : 'Inicio de Torneo'}</button>
-          <label>Minutos para iniciar<input type="number" min="1" disabled={Boolean(data.torneos[0]?.inicioTorneoEn)} value={minutosInicio} onChange={(event) => setMinutosInicio(event.target.value)} /></label>
-          <button className="start-button ghost-start" disabled={Boolean(data.torneos[0]?.inicioTorneoEn)} onClick={() => programarInicioTorneo(minutosInicio)}>{data.torneos[0]?.inicioProgramadoHasta ? 'Inicio programado' : 'Programar inicio'}</button>
           <button onClick={silbato}>Silbato</button>
           <button className="danger" onClick={marcarAusente}>No se presentó</button>
           <button onClick={postergar}>Postergar al final</button>
-          <button onClick={pasarSiguienteCategoria}>Siguiente categoría</button>
           <label>Minutos prueba pista<input type="number" min="1" value={minutosPrueba} onChange={(event) => setMinutosPrueba(event.target.value)} /></label>
           <button className="primary" onClick={() => iniciarPruebaPista(minutosPrueba)}>Probando pista</button>
         </div>
@@ -1131,24 +1080,13 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
           <strong>{proxima?.nombre || 'Última patinadora de la categoría'}</strong>
           {proxima && <small>{proximaClub?.nombre} - {proxima.dia} - {proxima.turno} - salida {proxima.ordenSalida || proxima.orden}</small>}
         </div>
-        <div className="warmup-list">
-          <span>Se preparan</span>
-          {pendientesPista.length ? pendientesPista.map((item) => (
-            <div key={item.id}>{item.ordenSalida || item.orden}. {item.nombre} - {item.turno}</div>
-          )) : <div>Sin patinadoras pendientes en esta categoría</div>}
-        </div>
         <FlujoCategoria data={data} pista={pista} actual={actual} mostrarProxima={false} />
         {!proxima && (
-          <div className="category-end-actions">
-            <button onClick={pasarSiguienteCategoria}>Pasar a siguiente categoría</button>
-            <label>
-              Minutos de receso
-              <input type="number" min="1" value={minutosReceso} onChange={(event) => setMinutosReceso(event.target.value)} />
-            </label>
-            <div className="delay-note">
-              El receso automático aparece {pista.demoraRecesoSeg || 0} segundos después del tanteador final.
+          <div className="category-end-actions judge-end-status">
+            <div className="end-status">
+              <span>{mismoTurnoSiguiente ? 'Categoría finalizada' : 'Turno finalizado'}</span>
+              <strong>{mismoTurnoSiguiente ? categoriaSiguiente?.nombre : `${actual.categoria?.dia || ''} ${actual.categoria?.turno || ''}`}</strong>
             </div>
-            <button onClick={() => iniciarReceso(minutosReceso)}>Receso</button>
           </div>
         )}
         <div className="legacy-score"><ScorePad value={pista.modo === 'consenso' ? puntaje.consenso || '' : miPuntaje.valor || ''} onChange={(valor) => actualizarPuntaje(actual.patinadora.id, (draft) => {
@@ -1198,7 +1136,7 @@ function Publica({ pista, actual, total, data, modo, iniciarTorneo }) {
     const patinadoras = data.patinadoras
       .filter((item) => item.categoriaId === pista.categoriaId && item.estado !== 'ausente')
       .sort(compararSalida)
-    return <PausaPantalla tipo="Probando pista" actual={actual} hasta={pista.pruebaPistaHasta} patinadoras={patinadoras} />
+    return <PausaPantalla tipo="Probando pista" actual={actual} hasta={pista.pruebaPistaHasta} patinadoras={patinadoras} clubes={data.clubes} />
   }
 
   if (pista.estado === 'Receso' || mostrandoRecesoAuto) {
@@ -1255,6 +1193,8 @@ function Publica({ pista, actual, total, data, modo, iniciarTorneo }) {
     return <TanteadorLed categoria={actual.categoria} rows={rows} clubes={data.clubes} data={data} modo={modo} />
   }
 
+  const puestoActual = rankingCategoria(data, pista.categoriaId, modo).find((row) => row.id === actual.patinadora?.id)?.puesto
+
   return (
     <main className="led">
       <div className="led-competitor">
@@ -1270,9 +1210,16 @@ function Publica({ pista, actual, total, data, modo, iniciarTorneo }) {
         </div>
       </div>
       <aside className="score-card">
-        <span>Puntuación</span>
-        <strong>{total == null ? '--' : total.toFixed(2)}</strong>
-        <small>{total == null ? 'Esperando publicación' : 'Publicado por jueces'}</small>
+        <div className="score-slot">
+          <span>Puntuación</span>
+          <strong>{total == null ? '--' : total.toFixed(2)}</strong>
+          <small>{total == null ? 'Esperando puntaje' : 'Puntaje cargado'}</small>
+        </div>
+        <div className="score-slot">
+          <span>Posición</span>
+          <strong>{puestoActual || '--'}</strong>
+          <small>{puestoActual ? 'Tanteador' : 'En espera'}</small>
+        </div>
       </aside>
     </main>
   )
@@ -1301,7 +1248,7 @@ function InicioTorneoPantalla({ actual, hasta, clubOrganizador }) {
   )
 }
 
-function PausaPantalla({ tipo, actual, hasta, patinadoras }) {
+function PausaPantalla({ tipo, actual, hasta, patinadoras, clubes }) {
   return (
     <main className="break-screen practice-screen">
       <section>
@@ -1313,14 +1260,20 @@ function PausaPantalla({ tipo, actual, hasta, patinadoras }) {
         <Timer hasta={hasta} />
         <small>Cuenta regresiva</small>
       </div>
-      <div className="break-info">
-        <div><span>Categoría</span><strong>{actual.categoria?.nombre || '-'}</strong></div>
-        <div><span>Estado</span><strong>{tipo}</strong></div>
-      </div>
       <div className="practice-list">
-        <span>Patinadoras</span>
+        <span>Patinadoras en pista</span>
         <div>
-          {patinadoras.map((item) => <strong key={item.id}>{item.ordenSalida || item.orden}. {item.nombre}</strong>)}
+          {patinadoras.map((item) => {
+            const club = clubes.find((clubItem) => clubItem.id === item.clubId)
+            return (
+              <article key={item.id}>
+                <b>{item.ordenSalida || item.orden}</b>
+                <Avatar src={club?.logo} label={club?.nombre} color={club?.color} />
+                <strong>{item.nombre}</strong>
+                <small>{club?.nombre || '-'}</small>
+              </article>
+            )
+          })}
         </div>
       </div>
     </main>
@@ -2107,6 +2060,7 @@ function FlujoCategoria({ data, pista, actual, mostrarProxima = true }) {
   const indiceActual = patinadorasActuales.findIndex((item) => item.id === actual.patinadora?.id)
   const proxima = patinadorasActuales[indiceActual + 1]
   const proximaClub = data.clubes.find((club) => club.id === proxima?.clubId)
+  const mismoTurnoSiguiente = siguiente && actualCategoria && siguiente.dia === actualCategoria.dia && siguiente.turno === actualCategoria.turno
 
   function estadoFila(item) {
     if (item.id === actual.patinadora?.id) return 'En pista'
@@ -2135,16 +2089,16 @@ function FlujoCategoria({ data, pista, actual, mostrarProxima = true }) {
         </div>
       </article>
       <article>
-        <h3>Siguiente categoría</h3>
-        <p>{siguiente?.nombre || 'A confirmar'}</p>
+        <h3>{mismoTurnoSiguiente ? 'Siguiente categoría' : siguiente ? 'Turno finalizado' : 'Torneo finalizado'}</h3>
+        <p>{mismoTurnoSiguiente ? siguiente?.nombre : siguiente ? `${actualCategoria?.dia || ''} ${actualCategoria?.turno || ''}` : 'Sin más categorías'}</p>
         <div>
-          {patinadorasSiguientes.length ? patinadorasSiguientes.map((item) => (
+          {mismoTurnoSiguiente && patinadorasSiguientes.length ? patinadorasSiguientes.map((item) => (
             <div key={item.id}>
               <b>{item.ordenSalida || item.orden}</b>
               <span>{item.nombre}</span>
               <small>{nombreClub(data, item.clubId)}</small>
             </div>
-          )) : <div><span>Sin listado cargado</span></div>}
+          )) : <div className="operator-continues"><span>{mismoTurnoSiguiente ? 'Sin listado cargado' : 'El operador continúa con el próximo turno.'}</span></div>}
         </div>
       </article>
     </section>
@@ -2170,6 +2124,12 @@ function FullscreenButton({ targetSelector }) {
     target.requestFullscreen?.()
   }
   return <button className="fullscreen-button" onClick={abrirPantalla}>Maximizar pantalla</button>
+}
+
+function reproducirSilbato() {
+  const audio = new Audio(WHISTLE_SRC)
+  audio.currentTime = 0
+  audio.play().catch(() => {})
 }
 
 function Competidor({ actual, total }) {
@@ -2255,11 +2215,21 @@ function StatusInfo({ clima }) {
 
 function Timer({ hasta }) {
   const [now, setNow] = useState(() => Date.now())
+  const sonoRef = useRef(false)
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 500)
     return () => clearInterval(timer)
   }, [])
+  useEffect(() => {
+    sonoRef.current = false
+  }, [hasta])
   const left = Math.max(0, hasta - now)
+  useEffect(() => {
+    if (left <= 0 && hasta && !sonoRef.current) {
+      sonoRef.current = true
+      reproducirSilbato()
+    }
+  }, [hasta, left])
   const minutes = Math.floor(left / 60000)
   const seconds = Math.floor((left % 60000) / 1000)
   return <b>{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</b>

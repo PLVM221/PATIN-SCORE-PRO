@@ -659,6 +659,48 @@ footer {
   align-items: end;
 }
 
+.judge-end-status {
+  grid-template-columns: 1fr;
+}
+
+.end-status {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid rgba(40, 230, 122, 0.22);
+  border-radius: 8px;
+  background: rgba(40, 230, 122, 0.08);
+  text-align: center;
+}
+
+.judge-end-status .end-status {
+  min-height: 88px;
+}
+
+.operator-continues {
+  min-height: 118px;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.operator-continues span {
+  max-width: 360px;
+  line-height: 1.35;
+}
+
+.end-status span {
+  color: var(--green);
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.end-status strong {
+  color: #ecfdf5;
+}
+
 .delay-note {
   min-height: 58px;
   display: grid;
@@ -986,9 +1028,9 @@ audio {
 .score-card {
   display: grid;
   justify-items: center;
-  gap: 16px;
+  gap: 14px;
   min-width: 0;
-  padding: clamp(24px, 3.5vw, 48px);
+  padding: clamp(16px, 2vw, 28px);
   border: 1px solid rgba(40, 230, 122, 0.42);
   border-radius: 8px;
   background:
@@ -998,15 +1040,28 @@ audio {
   text-align: center;
 }
 
-.score-card strong {
+.score-slot {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 190px;
+  align-content: center;
+  padding: clamp(18px, 2.5vw, 34px);
+  border: 1px solid rgba(40, 230, 122, 0.28);
+  border-radius: 8px;
+  background: rgba(2, 9, 6, 0.78);
+}
+
+.score-slot strong {
   color: #8affbd;
-  font-size: clamp(5rem, 9vw, 10rem);
+  font-size: clamp(4.5rem, 8vw, 8.5rem);
   font-weight: 950;
   line-height: 0.9;
   text-shadow: 0 0 26px rgba(40, 230, 122, 0.55);
 }
 
-.score-card small {
+.score-slot small {
   color: var(--muted);
   font-size: clamp(1rem, 1.25vw, 1.35rem);
   font-weight: 950;
@@ -1099,6 +1154,20 @@ audio {
 .practice-screen h2 {
   max-width: 900px;
   font-size: clamp(4.4rem, 9.2vw, 8rem);
+}
+
+.practice-screen {
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.practice-screen section {
+  align-self: center;
+}
+
+.practice-screen .break-timer {
+  align-self: center;
+  margin-top: 0;
 }
 
 .break-screen section p {
@@ -1238,11 +1307,10 @@ audio {
 }
 
 .practice-list {
-  grid-column: 2;
+  grid-column: 1 / -1;
   display: grid;
-  align-self: stretch;
-  gap: 12px;
-  padding: 22px;
+  gap: 16px;
+  padding: clamp(18px, 2.5vw, 32px);
   border: 1px solid rgba(40, 230, 122, 0.38);
   border-radius: 8px;
   background:
@@ -1261,18 +1329,51 @@ audio {
 
 .practice-list div {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 12px;
   align-content: start;
 }
 
-.practice-list strong {
-  padding: 10px 12px;
+.practice-list article {
+  display: grid;
+  grid-template-columns: 54px 74px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 96px;
+  padding: 12px 16px;
   border: 1px solid rgba(40, 230, 122, 0.18);
   border-radius: 8px;
   background: rgba(2, 9, 6, 0.72);
+}
+
+.practice-list b {
+  display: grid;
+  place-items: center;
+  min-height: 54px;
+  border-radius: 8px;
+  background: rgba(40, 230, 122, 0.16);
+  color: var(--green);
+  font-size: clamp(1.3rem, 2vw, 2rem);
+}
+
+.practice-list article .avatar {
+  width: 68px;
+  height: 68px;
+}
+
+.practice-list strong {
+  min-width: 0;
   color: #ecfdf5;
-  font-size: clamp(1rem, 1.45vw, 1.35rem);
-  text-align: center;
+  font-size: clamp(1.25rem, 2vw, 2.3rem);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.practice-list small {
+  grid-column: 3;
+  color: var(--muted);
+  font-size: clamp(0.95rem, 1.35vw, 1.3rem);
+  font-weight: 950;
 }
 
 @keyframes pulseScore {
