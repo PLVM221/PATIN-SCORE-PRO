@@ -4,6 +4,13 @@ import './App.css'
 
 const STORAGE_KEY = 'patin-score-pro-v1'
 
+const temasSistema = [
+  { id: 'verde', nombre: 'Verde clásico' },
+  { id: 'azul', nombre: 'Azul nocturno' },
+  { id: 'violeta', nombre: 'Violeta escenario' },
+  { id: 'ambar', nombre: 'Ámbar deportivo' },
+]
+
 const demo = {
   torneos: [{
     id: 't1',
@@ -66,6 +73,7 @@ const demo = {
   ],
   puntajes: {},
   logs: [{ id: 'l1', fecha: new Date().toISOString(), texto: 'Demo iniciado' }],
+  tema: 'verde',
 }
 
 const basePista = {
@@ -76,11 +84,15 @@ const basePista = {
   modo: 'jueces',
   recesoMin: 5,
   demoraRecesoSeg: 60,
+  juecesPuntajeSeg: 5,
+  inicioProgramadoHasta: null,
   recesoHasta: null,
   pruebaPistaMin: 5,
   pruebaPistaHasta: null,
   puntajeHasta: null,
   puntajePatinadoraId: null,
+  juezCambioHasta: null,
+  juezSiguientePatinadoraId: null,
   categoriaFinalHasta: null,
   autoRecesoHasta: null,
 }
@@ -107,6 +119,7 @@ function normalizeData(data) {
       liga: '',
       ligaLogo: '',
       clubOrganizadorId: '',
+      confirmado: false,
       fechaDesde: torneo.fecha || new Date().toISOString().slice(0, 10),
       fechaHasta: torneo.fecha || new Date().toISOString().slice(0, 10),
       horarioInicio: '',
@@ -116,6 +129,7 @@ function normalizeData(data) {
     })),
     buffet: data.buffet || demo.buffet,
     usuarios: data.usuarios || demo.usuarios,
+    tema: data.tema || 'verde',
     categorias: (data.categorias || demo.categorias).map((item, index) => ({
       dia: data.torneos?.[0]?.fechaDesde || data.torneos?.[0]?.fecha || '',
       turno: data.torneos?.[0]?.turnos?.[0] || 'Único',
@@ -124,6 +138,7 @@ function normalizeData(data) {
     })),
     canciones: data.canciones || [],
     conceptosPuntaje: data.conceptosPuntaje || demo.conceptosPuntaje,
+    estadoPista: data.estadoPista || basePista,
     patinadoras: data.patinadoras.map((item, index) => ({
       orden: index + 1,
       ordenSalida: item.ordenSalida || item.orden || index + 1,
@@ -239,16 +254,18 @@ function rankingClubes(data, modo) {
     rankingCategoria(data, categoria.id, modo)
       .filter((row) => row.puesto)
       .forEach((row) => {
-        const actual = tabla.get(row.clubId) || { clubId: row.clubId, primero: 0, segundo: 0, tercero: 0, podios: 0, incentivos: 0 }
+        const actual = tabla.get(row.clubId) || { clubId: row.clubId, primero: 0, segundo: 0, tercero: 0, cuarto: 0, quinto: 0, puntos: 0, incentivos: 0 }
         if (row.puesto === 1) actual.primero += 1
         if (row.puesto === 2) actual.segundo += 1
         if (row.puesto === 3) actual.tercero += 1
-        if (row.puesto <= 3) actual.podios += 1
-        if ((row.total || 0) >= 7.5) actual.incentivos += 1
+        if (row.puesto === 4) actual.cuarto += 1
+        if (row.puesto === 5) actual.quinto += 1
+        if (row.puesto <= 5) actual.puntos += 6 - row.puesto
+        else actual.incentivos += 1
         tabla.set(row.clubId, actual)
       })
   })
-  return [...tabla.values()].sort((a, b) => b.primero - a.primero || b.segundo - a.segundo || b.tercero - a.tercero || b.podios - a.podios || b.incentivos - a.incentivos)
+  return [...tabla.values()].sort((a, b) => b.puntos - a.puntos || b.primero - a.primero || b.segundo - a.segundo || b.tercero - a.tercero || b.cuarto - a.cuarto || b.quinto - a.quinto || b.incentivos - a.incentivos)
 }
 
 function cell(row, names) {
@@ -353,7 +370,9 @@ export default function App() {
         setPersistencia('SQL')
         if (payload.data) {
           omitirGuardadoRef.current = true
-          setData(normalizeData({ ...demo, ...payload.data }))
+          const next = normalizeData({ ...demo, ...payload.data })
+          setData(next)
+          if (payload.data.estadoPista) setPista({ ...basePista, ...payload.data.estadoPista })
         } else {
           await fetch('/api/state', {
             method: 'PUT',
@@ -374,6 +393,19 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (esVistaWeb) return undefined
+    // Sincroniza el estado operativo con SQL para que el QR vea receso/prueba en vivo.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setData((prev) => {
+      const actualEstado = JSON.stringify(prev.estadoPista || {})
+      const nuevoEstado = JSON.stringify(pista)
+      if (actualEstado === nuevoEstado) return prev
+      return { ...prev, estadoPista: pista }
+    })
+    return undefined
+  }, [pista, esVistaWeb])
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
@@ -408,7 +440,8 @@ export default function App() {
         .then((payload) => {
           if (payload?.data) {
             omitirGuardadoRef.current = true
-            setData(normalizeData({ ...demo, ...payload.data }))
+            const next = normalizeData({ ...demo, ...payload.data })
+            setData(next)
           }
         })
         .catch(() => {})
@@ -435,8 +468,51 @@ export default function App() {
   const usuarioActual = data.usuarios.find((item) => item.id === usuarioId) || data.usuarios[0]
   const tabsVisibles = tabs.filter((item) => usuarioActual?.tabs?.includes(item))
 
+  const pistaPublica = data.estadoPista || pista
+  const inicioProgramadoHasta = actual.torneo?.inicioProgramadoHasta || pista.inicioProgramadoHasta
+
+  useEffect(() => {
+    if (esVistaWeb || actual.torneo?.inicioTorneoEn || !inicioProgramadoHasta) return undefined
+    const espera = Math.max(0, inicioProgramadoHasta - Date.now())
+    const torneoId = actual.torneo?.id
+    const torneoNombre = actual.torneo?.nombre || 'Torneo'
+    const timer = window.setTimeout(() => {
+      setData((prev) => {
+        const next = structuredClone(prev)
+        const torneo = next.torneos.find((item) => item.id === torneoId) || next.torneos[0]
+        if (!torneo || torneo.inicioTorneoEn) return prev
+        torneo.inicioTorneoEn = new Date().toISOString()
+        torneo.inicioProgramadoHasta = null
+        next.logs.unshift({ id: id('log'), fecha: new Date().toISOString(), texto: `Inicio de torneo: ${torneoNombre}` })
+        return next
+      })
+      setPista((prev) => ({ ...prev, estado: 'Torneo iniciado', inicioProgramadoHasta: null }))
+    }, espera)
+    return () => window.clearTimeout(timer)
+  }, [actual.torneo?.id, actual.torneo?.inicioTorneoEn, actual.torneo?.nombre, esVistaWeb, inicioProgramadoHasta])
+
+  useEffect(() => {
+    if (esVistaWeb || !pista.juezCambioHasta) return undefined
+    const avanzar = () => {
+      setPista((prev) => {
+        if (!prev.juezCambioHasta || Date.now() < prev.juezCambioHasta) return prev
+        const siguienteId = prev.juezSiguientePatinadoraId
+        return {
+          ...prev,
+          patinadoraId: siguienteId || prev.patinadoraId,
+          estado: siguienteId ? 'Preparando' : 'Categoría finalizada',
+          juezCambioHasta: null,
+          juezSiguientePatinadoraId: null,
+        }
+      })
+    }
+    const espera = Math.max(0, pista.juezCambioHasta - Date.now())
+    const timer = window.setTimeout(avanzar, espera)
+    return () => window.clearTimeout(timer)
+  }, [esVistaWeb, pista.juezCambioHasta])
+
   if (esVistaWeb) {
-    return <VistaWeb data={data} modo={pista.modo} />
+    return <VistaWeb data={data} modo={pistaPublica.modo || pista.modo} pista={pistaPublica} />
   }
 
   function log(texto) {
@@ -456,13 +532,13 @@ export default function App() {
     const primera = data.patinadoras
       .filter((item) => item.categoriaId === categoriaId && item.estado !== 'ausente')
       .sort(compararSalida)[0]
-    setPista((prev) => ({ ...prev, categoriaId, patinadoraId: primera?.id || '', estado: 'Preparando' }))
+    setPista((prev) => ({ ...prev, categoriaId, patinadoraId: primera?.id || '', estado: 'Preparando', juezCambioHasta: null, juezSiguientePatinadoraId: null }))
   }
 
   function mover(delta) {
     const index = patinadorasCategoria.findIndex((item) => item.id === pista.patinadoraId)
     const next = patinadorasCategoria[index + delta]
-    if (next) setPista((prev) => ({ ...prev, patinadoraId: next.id, estado: 'Preparando' }))
+    if (next) setPista((prev) => ({ ...prev, patinadoraId: next.id, estado: 'Preparando', juezCambioHasta: null, juezSiguientePatinadoraId: null }))
   }
 
   function guardarArchivo(tipo, entidad, itemId, campo, file) {
@@ -486,24 +562,37 @@ export default function App() {
     const ctx = new AudioContext()
     const osc = ctx.createOscillator()
     const osc2 = ctx.createOscillator()
+    const osc3 = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.type = 'square'
     osc2.type = 'square'
-    osc.frequency.setValueAtTime(2200, ctx.currentTime)
-    osc.frequency.exponentialRampToValueAtTime(1800, ctx.currentTime + 0.18)
-    osc2.frequency.setValueAtTime(2480, ctx.currentTime)
-    osc2.frequency.exponentialRampToValueAtTime(2050, ctx.currentTime + 0.18)
+    osc3.type = 'sawtooth'
+    osc.frequency.setValueAtTime(3150, ctx.currentTime)
+    osc.frequency.exponentialRampToValueAtTime(2450, ctx.currentTime + 0.12)
+    osc.frequency.setValueAtTime(3000, ctx.currentTime + 0.2)
+    osc.frequency.exponentialRampToValueAtTime(2300, ctx.currentTime + 0.36)
+    osc2.frequency.setValueAtTime(3600, ctx.currentTime)
+    osc2.frequency.exponentialRampToValueAtTime(2800, ctx.currentTime + 0.12)
+    osc2.frequency.setValueAtTime(3450, ctx.currentTime + 0.2)
+    osc2.frequency.exponentialRampToValueAtTime(2600, ctx.currentTime + 0.36)
+    osc3.frequency.setValueAtTime(1800, ctx.currentTime)
     gain.gain.setValueAtTime(0.001, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.55, ctx.currentTime + 0.02)
-    gain.gain.setValueAtTime(0.55, ctx.currentTime + 0.24)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+    gain.gain.exponentialRampToValueAtTime(0.72, ctx.currentTime + 0.015)
+    gain.gain.setValueAtTime(0.72, ctx.currentTime + 0.11)
+    gain.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.15)
+    gain.gain.exponentialRampToValueAtTime(0.74, ctx.currentTime + 0.2)
+    gain.gain.setValueAtTime(0.74, ctx.currentTime + 0.34)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.48)
     osc.connect(gain)
     osc2.connect(gain)
+    osc3.connect(gain)
     gain.connect(ctx.destination)
     osc.start()
     osc2.start()
-    osc.stop(ctx.currentTime + 0.52)
-    osc2.stop(ctx.currentTime + 0.52)
+    osc3.start()
+    osc.stop(ctx.currentTime + 0.5)
+    osc2.stop(ctx.currentTime + 0.5)
+    osc3.stop(ctx.currentTime + 0.5)
     log('Silbato')
   }
 
@@ -530,14 +619,18 @@ export default function App() {
     // eslint-disable-next-line react-hooks/purity
     const now = Date.now()
     const demoraRecesoMs = Math.max(0, Number(pista.demoraRecesoSeg) || 0) * 1000
+    const demoraJuecesMs = Math.max(0, Number(pista.juecesPuntajeSeg) || 0) * 1000
     const categoriaFinalHasta = siguiente ? null : now + demoraRecesoMs
     setPista((prev) => ({
       ...prev,
-      patinadoraId: siguiente?.id || actual.patinadora.id,
-      estado: siguiente ? 'Preparando' : 'Categoría finalizada',
+      patinadoraId: actual.patinadora.id,
+      estado: 'Puntaje publicado',
       puntajeHasta: now + 10000,
       puntajePatinadoraId: actual.patinadora.id,
       demoraRecesoSeg: prev.demoraRecesoSeg,
+      juecesPuntajeSeg: prev.juecesPuntajeSeg,
+      juezCambioHasta: now + demoraJuecesMs,
+      juezSiguientePatinadoraId: siguiente?.id || null,
       categoriaFinalHasta,
       autoRecesoHasta: categoriaFinalHasta ? categoriaFinalHasta + Number(prev.recesoMin) * 60000 : null,
     }))
@@ -558,6 +651,8 @@ export default function App() {
       estado: 'Preparando',
       puntajeHasta: null,
       puntajePatinadoraId: null,
+      juezCambioHasta: null,
+      juezSiguientePatinadoraId: null,
       categoriaFinalHasta: null,
       autoRecesoHasta: null,
     }))
@@ -588,6 +683,33 @@ export default function App() {
       autoRecesoHasta: null,
     }))
     log(`Prueba de pista ${duration} min`)
+  }
+
+  function iniciarTorneo() {
+    if (data.torneos[0]?.inicioTorneoEn) return
+    mutate((draft) => {
+      draft.torneos[0].inicioTorneoEn = new Date().toISOString()
+      draft.torneos[0].inicioProgramadoHasta = null
+    }, `Inicio de torneo: ${data.torneos[0]?.nombre || 'Torneo'}`)
+    setPista((prev) => ({ ...prev, estado: 'Torneo iniciado', inicioProgramadoHasta: null }))
+  }
+
+  function programarInicioTorneo(minutos) {
+    if (data.torneos[0]?.inicioTorneoEn) return
+    const duration = Math.max(1, Number(minutos) || 1)
+    const hasta = Date.now() + duration * 60000
+    mutate((draft) => {
+      draft.torneos[0].inicioProgramadoHasta = hasta
+    }, `Inicio de torneo programado en ${duration} min`)
+    setPista((prev) => ({ ...prev, estado: 'Inicio programado', inicioProgramadoHasta: hasta }))
+  }
+
+  function rehabilitarInicioTorneo() {
+    mutate((draft) => {
+      draft.torneos[0].inicioTorneoEn = null
+      draft.torneos[0].inicioProgramadoHasta = null
+    }, `Inicio de torneo rehabilitado: ${data.torneos[0]?.nombre || 'Torneo'}`)
+    setPista((prev) => ({ ...prev, inicioProgramadoHasta: null, estado: 'Preparando' }))
   }
 
   function marcarAusente() {
@@ -704,6 +826,24 @@ export default function App() {
     })
   }
 
+  function cargarEscudosClubes(files) {
+    Array.from(files || []).forEach((file) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const nombreClubArchivo = file.name.replace(/\.[^.]+$/, '').trim()
+        mutate((draft) => {
+          let club = draft.clubes.find((item) => slug(item.nombre) === slug(nombreClubArchivo))
+          if (!club) {
+            club = { id: id('club'), nombre: nombreClubArchivo, color: '#28e67a', logo: '' }
+            draft.clubes.push(club)
+          }
+          club.logo = reader.result
+        }, `Escudo de club cargado: ${nombreClubArchivo}`)
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
   async function importarClubes(file) {
     if (!file) return
     const rows = await readSheetRows(file)
@@ -801,7 +941,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app" data-theme={data.tema || 'verde'}>
       <header className="top">
         <div>
           <span>Patín Score Pro</span>
@@ -811,7 +951,7 @@ export default function App() {
         <div className="organizer-crest">
           <Avatar src={clubOrganizador?.logo} label={clubOrganizador?.nombre} color={clubOrganizador?.color} />
         </div>
-        <StatusInfo clima={tab === 'Operador'} />
+        <StatusInfo clima />
         <strong>{pista.estado}</strong>
       </header>
 
@@ -820,28 +960,40 @@ export default function App() {
       </nav>
 
       {tab === 'Operador' && (
-        <main className="grid two">
+        <main className="grid two operator-grid">
           <Panel title="Evento">
-            <ConfigEvento data={data} mutate={mutate} />
+            <ConfigEvento data={data} mutate={mutate} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} rehabilitarInicioTorneo={rehabilitarInicioTorneo} />
           </Panel>
-          <Panel title="Pista">
-            <div className="fields">
-              <label>Categoría<select value={pista.categoriaId} onChange={(e) => cambiarCategoria(e.target.value)}>{[...data.categorias].sort(compararCategoria).map((item) => <option key={item.id} value={item.id}>{item.dia} {item.turno} - {item.orden}. {item.nombre}</option>)}</select></label>
-              <label>Patinadora<select value={pista.patinadoraId} onChange={(e) => setPista({ ...pista, patinadoraId: e.target.value })}>{patinadorasCategoria.map((item) => <option key={item.id} value={item.id}>{item.dia} {item.turno} - {item.ordenSalida || item.orden}. {item.nombre}</option>)}</select></label>
-              <label>Modo<select value={pista.modo} onChange={(e) => setPista({ ...pista, modo: e.target.value })}><option value="jueces">Varios jueces</option><option value="consenso">Consensuado</option></select></label>
-              <label>Receso minutos<input type="number" min="1" value={pista.recesoMin} onChange={(e) => setPista({ ...pista, recesoMin: e.target.value })} /></label>
-              <label>Demora antes del receso<input type="number" min="0" value={pista.demoraRecesoSeg} onChange={(e) => setPista({ ...pista, demoraRecesoSeg: e.target.value })} /></label>
+          <Panel title="Pista" className="operator-pista-panel">
+            <div className="operator-sections">
+              <section>
+                <span>Orden de pista</span>
+                <div className="fields">
+                  <label>Categoría<select value={pista.categoriaId} onChange={(e) => cambiarCategoria(e.target.value)}>{[...data.categorias].sort(compararCategoria).map((item) => <option key={item.id} value={item.id}>{item.dia} {item.turno} - {item.orden}. {item.nombre}</option>)}</select></label>
+                  <label>Patinadora<select value={pista.patinadoraId} onChange={(e) => setPista({ ...pista, patinadoraId: e.target.value, juezCambioHasta: null, juezSiguientePatinadoraId: null })}>{patinadorasCategoria.map((item) => <option key={item.id} value={item.id}>{item.dia} {item.turno} - {item.ordenSalida || item.orden}. {item.nombre}</option>)}</select></label>
+                </div>
+              </section>
+              <section>
+                <span>Configuración de puntuación y tiempos</span>
+                <div className="fields">
+                  <label>Modo<select value={pista.modo} onChange={(e) => setPista({ ...pista, modo: e.target.value })}><option value="jueces">Varios jueces</option><option value="consenso">Consensuado</option></select></label>
+                  <label>Receso minutos<input type="number" min="1" value={pista.recesoMin} onChange={(e) => setPista({ ...pista, recesoMin: e.target.value })} /></label>
+                  <label>Segundos visible para jueces<input type="number" min="0" value={pista.juecesPuntajeSeg ?? 5} onChange={(e) => setPista({ ...pista, juecesPuntajeSeg: e.target.value })} /></label>
+                  <label>Segundos antes de cambiar a pantalla de receso<input type="number" min="0" value={pista.demoraRecesoSeg} onChange={(e) => setPista({ ...pista, demoraRecesoSeg: e.target.value })} /></label>
+                </div>
+              </section>
             </div>
             <Competidor actual={actual} total={totalActual} />
-            <div className="actions">
+            <div className="actions operator-actions">
               <button onClick={() => setPista({ ...pista, estado: 'En pista' })}>En pista</button>
-              <button onClick={silbato}>Silbato</button>
               <button onClick={() => mover(-1)}>Anterior</button>
               <button onClick={() => mover(1)}>Siguiente</button>
+              <button onClick={pasarSiguienteCategoria}>Siguiente categoría</button>
               <button onClick={() => { setPista({ ...pista, estado: 'Receso', recesoHasta: Date.now() + Number(pista.recesoMin) * 60000 }); log(`Receso ${pista.recesoMin} min`) }}>Receso</button>
               <button className="danger" onClick={marcarAusente}>No se presentó</button>
               <button onClick={postergar}>Postergar al final</button>
             </div>
+            <FlujoCategoria data={data} pista={pista} actual={actual} mostrarProxima={false} />
           </Panel>
           <Panel title="Música y confirmación">
             <div className="music-now">
@@ -851,6 +1003,7 @@ export default function App() {
             </div>
             {actual.cancion?.archivo || actual.patinadora?.audio ? <audio ref={audioRef} controls src={actual.cancion?.archivo || actual.patinadora.audio} /> : <div className="empty">El administrador carga audio con mismo ID de la patinadora.</div>}
             <div className="actions">
+              <button onClick={silbato}>Silbato</button>
               <button className="primary" onClick={playActual}>Reproducir actual</button>
               <button onClick={() => audioRef.current?.pause()}>Pausa</button>
               <button className="danger" onClick={() => setPista({ ...pista, estado: 'Detenido' })}>Detener</button>
@@ -859,15 +1012,18 @@ export default function App() {
               <b>{actual.puntaje?.confirmado ? 'Publicado por juez' : 'Pendiente de publicación del juez'}</b>
             </div>
           </Panel>
+          <Panel title="Colores del sistema">
+            <ConfigTema data={data} mutate={mutate} />
+          </Panel>
         </main>
       )}
 
-      {tab === 'Jueces' && <Jueces data={data} pista={pista} actual={actual} juezId={juezId} setJuezId={setJuezId} actualizarPuntaje={actualizarPuntaje} publicarPuntaje={publicarPuntaje} pasarSiguienteCategoria={pasarSiguienteCategoria} iniciarReceso={iniciarRecesoDesdeJuez} iniciarPruebaPista={iniciarPruebaPista} silbato={silbato} marcarAusente={marcarAusente} postergar={postergar} />}
-      {tab === 'Pública LED' && <Publica pista={pista} actual={actual} total={totalActual} data={data} modo={pista.modo} />}
-      {tab === 'Datos' && <Datos data={data} mutate={mutate} guardarArchivo={guardarArchivo} importarListado={importarListado} cargarCanciones={cargarCanciones} importarClubes={importarClubes} importarTecnicas={importarTecnicas} importarCategorias={importarCategorias} importarJueces={importarJueces} />}
-      {tab === 'Web pública' && <WebPublica data={data} modo={pista.modo} />}
+      {tab === 'Jueces' && <Jueces data={data} pista={pista} actual={actual} juezId={juezId} setJuezId={setJuezId} actualizarPuntaje={actualizarPuntaje} publicarPuntaje={publicarPuntaje} pasarSiguienteCategoria={pasarSiguienteCategoria} iniciarReceso={iniciarRecesoDesdeJuez} iniciarPruebaPista={iniciarPruebaPista} silbato={silbato} marcarAusente={marcarAusente} postergar={postergar} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} />}
+      {tab === 'Pública LED' && <main className="screen-wrap"><FullscreenButton targetSelector=".screen-wrap" /><Publica pista={pista} actual={actual} total={totalActual} data={data} modo={pista.modo} iniciarTorneo={iniciarTorneo} /></main>}
+      {tab === 'Datos' && <Datos data={data} mutate={mutate} guardarArchivo={guardarArchivo} importarListado={importarListado} cargarCanciones={cargarCanciones} cargarEscudosClubes={cargarEscudosClubes} importarClubes={importarClubes} importarTecnicas={importarTecnicas} importarCategorias={importarCategorias} importarJueces={importarJueces} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} rehabilitarInicioTorneo={rehabilitarInicioTorneo} />}
+      {tab === 'Web pública' && <WebPublica data={data} modo={pista.modo} pista={pistaPublica} />}
       {tab === 'Reportes' && <Reportes data={data} />}
-      {tab === 'Tanteador' && <Tanteador data={data} categoriaId={pista.categoriaId} modo={pista.modo} />}
+      {tab === 'Tanteador' && <main className="screen-wrap"><FullscreenButton targetSelector=".screen-wrap" /><Tanteador data={data} categoriaId={pista.categoriaId} modo={pista.modo} /></main>}
       {tab === 'Ranking clubes' && <RankingClubes data={data} modo={pista.modo} />}
       {tab === 'Actas' && <Actas data={data} modo={pista.modo} />}
       {tab === 'Registros' && <Logs data={data} />}
@@ -881,10 +1037,11 @@ export default function App() {
   )
 }
 
-function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, publicarPuntaje, pasarSiguienteCategoria, iniciarReceso, iniciarPruebaPista, silbato, marcarAusente, postergar }) {
+function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, publicarPuntaje, pasarSiguienteCategoria, iniciarReceso, iniciarPruebaPista, silbato, marcarAusente, postergar, iniciarTorneo, programarInicioTorneo }) {
   const puntaje = actual.puntaje || { jueces: {} }
   const [minutosReceso, setMinutosReceso] = useState(pista.recesoMin || 5)
   const [minutosPrueba, setMinutosPrueba] = useState(pista.pruebaPistaMin || 5)
+  const [minutosInicio, setMinutosInicio] = useState(5)
   const miPuntaje = puntaje.jueces[juezId] || {}
   const totalTecnico = totalPuntaje(puntaje, pista.modo, data.conceptosPuntaje)
   const patinadorasOrdenadas = data.patinadoras
@@ -930,7 +1087,8 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
           <div>
             <small>{actual.categoria?.nombre}</small>
             <h2>{actual.patinadora?.nombre}</h2>
-            <p>{actual.club?.nombre} - {actual.patinadora?.dia} - {actual.patinadora?.turno} - salida {actual.patinadora?.ordenSalida || actual.patinadora?.orden}</p>
+            <p>{actual.club?.nombre}</p>
+            <b>Ubicación de salida {actual.patinadora?.ordenSalida || actual.patinadora?.orden || '-'}</b>
           </div>
         </div>
         <div className="concept-list">
@@ -958,14 +1116,18 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
           <span>{actual.puntaje?.confirmado ? 'Publicado' : tieneValor ? 'Listo para publicar' : 'Esperando puntuación'}</span>
         </div>
         <div className="judge-actions">
+          <button className="start-button" disabled={Boolean(data.torneos[0]?.inicioTorneoEn)} onClick={iniciarTorneo}>{data.torneos[0]?.inicioTorneoEn ? 'Torneo iniciado' : 'Inicio de Torneo'}</button>
+          <label>Minutos para iniciar<input type="number" min="1" disabled={Boolean(data.torneos[0]?.inicioTorneoEn)} value={minutosInicio} onChange={(event) => setMinutosInicio(event.target.value)} /></label>
+          <button className="start-button ghost-start" disabled={Boolean(data.torneos[0]?.inicioTorneoEn)} onClick={() => programarInicioTorneo(minutosInicio)}>{data.torneos[0]?.inicioProgramadoHasta ? 'Inicio programado' : 'Programar inicio'}</button>
           <button onClick={silbato}>Silbato</button>
           <button className="danger" onClick={marcarAusente}>No se presentó</button>
           <button onClick={postergar}>Postergar al final</button>
+          <button onClick={pasarSiguienteCategoria}>Siguiente categoría</button>
           <label>Minutos prueba pista<input type="number" min="1" value={minutosPrueba} onChange={(event) => setMinutosPrueba(event.target.value)} /></label>
           <button className="primary" onClick={() => iniciarPruebaPista(minutosPrueba)}>Probando pista</button>
         </div>
         <div className="next-skater">
-          <span>Se prepara</span>
+          <span>Siguiente patinadora</span>
           <strong>{proxima?.nombre || 'Última patinadora de la categoría'}</strong>
           {proxima && <small>{proximaClub?.nombre} - {proxima.dia} - {proxima.turno} - salida {proxima.ordenSalida || proxima.orden}</small>}
         </div>
@@ -975,6 +1137,7 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
             <div key={item.id}>{item.ordenSalida || item.orden}. {item.nombre} - {item.turno}</div>
           )) : <div>Sin patinadoras pendientes en esta categoría</div>}
         </div>
+        <FlujoCategoria data={data} pista={pista} actual={actual} mostrarProxima={false} />
         {!proxima && (
           <div className="category-end-actions">
             <button onClick={pasarSiguienteCategoria}>Pasar a siguiente categoría</button>
@@ -1003,12 +1166,19 @@ function Jueces({ data, pista, actual, juezId, setJuezId, actualizarPuntaje, pub
   )
 }
 
-function Publica({ pista, actual, total, data, modo }) {
+function Publica({ pista, actual, total, data, modo, iniciarTorneo }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 500)
     return () => clearInterval(timer)
   }, [])
+
+  const inicioProgramadoHasta = pista.inicioProgramadoHasta || actual.torneo?.inicioProgramadoHasta
+  useEffect(() => {
+    if (!actual.torneo?.inicioTorneoEn && inicioProgramadoHasta && now >= inicioProgramadoHasta) {
+      iniciarTorneo?.()
+    }
+  }, [actual.torneo?.inicioTorneoEn, inicioProgramadoHasta, iniciarTorneo, now])
 
   const mostrandoPuntaje = pista.puntajeHasta && now < pista.puntajeHasta && pista.puntajePatinadoraId
   const mostrandoPrueba = pista.pruebaPistaHasta && now < pista.pruebaPistaHasta
@@ -1020,8 +1190,15 @@ function Publica({ pista, actual, total, data, modo }) {
   const proximaCategoria = siguienteCategoria(data, pista.categoriaId)
   const clubOrganizador = data.clubes.find((club) => club.id === actual.torneo?.clubOrganizadorId)
 
+  if (!actual.torneo?.inicioTorneoEn && inicioProgramadoHasta && now < inicioProgramadoHasta) {
+    return <InicioTorneoPantalla actual={actual} hasta={inicioProgramadoHasta} clubOrganizador={clubOrganizador} />
+  }
+
   if (mostrandoPrueba) {
-    return <PausaPantalla tipo="Probando pista" actual={actual} hasta={pista.pruebaPistaHasta} detalle="Se preparan para competir" extra={`Primera patinadora: ${actual.patinadora?.nombre || '-'}`} />
+    const patinadoras = data.patinadoras
+      .filter((item) => item.categoriaId === pista.categoriaId && item.estado !== 'ausente')
+      .sort(compararSalida)
+    return <PausaPantalla tipo="Probando pista" actual={actual} hasta={pista.pruebaPistaHasta} patinadoras={patinadoras} />
   }
 
   if (pista.estado === 'Receso' || mostrandoRecesoAuto) {
@@ -1041,7 +1218,6 @@ function Publica({ pista, actual, total, data, modo }) {
         <div className="break-info">
           <div><span>Torneo</span><strong>{actual.torneo?.nombre || '-'}</strong></div>
           <div><span>Liga</span><strong>{actual.torneo?.liga || '-'}</strong></div>
-          <div><span>Club organizador</span><strong>{clubOrganizador?.nombre || '-'}</strong></div>
           <div><span>Siguiente categoría</span><strong>{proximaCategoria?.nombre || 'A confirmar'}</strong></div>
           <div><span>Tiempo de receso</span><strong>{pista.recesoMin || 0} min</strong></div>
         </div>
@@ -1052,13 +1228,24 @@ function Publica({ pista, actual, total, data, modo }) {
   if (mostrandoPuntaje) {
     return (
       <main className="led score-reveal">
-        <div>
-          <p>Puntaje recibido</p>
+        <div className="led-competitor">
+          <div className="led-meta">
+            <span>Categoría</span>
+            <strong>{actual.categoria?.nombre || '-'}</strong>
+          </div>
+          <p>Puntaje publicado</p>
           <h2>{patinadoraPuntaje?.nombre}</h2>
-          <span>{clubPuntaje?.nombre}</span>
+          <div className="led-club">
+            <Avatar src={clubPuntaje?.logo} label={clubPuntaje?.nombre} color={clubPuntaje?.color} />
+            <span>Club</span>
+            <strong>{clubPuntaje?.nombre || '-'}</strong>
+          </div>
         </div>
-        <strong>{totalPuntajeReciente == null ? '--' : totalPuntajeReciente.toFixed(2)}</strong>
-        <em>Mostrando puntaje</em>
+        <aside className="score-card">
+          <span>Puntuación</span>
+          <strong>{totalPuntajeReciente == null ? '--' : totalPuntajeReciente.toFixed(2)}</strong>
+          <small>Publicado por jueces</small>
+        </aside>
       </main>
     )
   }
@@ -1070,25 +1257,57 @@ function Publica({ pista, actual, total, data, modo }) {
 
   return (
     <main className="led">
-      <div>
-        <p>{actual.categoria?.nombre}</p>
+      <div className="led-competitor">
+        <div className="led-meta">
+          <span>Categoría</span>
+          <strong>{actual.categoria?.nombre || '-'}</strong>
+        </div>
         <h2>{actual.patinadora?.nombre}</h2>
-        <span>{actual.club?.nombre}</span>
+        <div className="led-club">
+          <Avatar src={actual.club?.logo} label={actual.club?.nombre} color={actual.club?.color} />
+          <span>Club</span>
+          <strong>{actual.club?.nombre || '-'}</strong>
+        </div>
       </div>
-      <strong>{total == null ? '--' : total.toFixed(2)}</strong>
-      <em>{pista.estado}</em>
+      <aside className="score-card">
+        <span>Puntuación</span>
+        <strong>{total == null ? '--' : total.toFixed(2)}</strong>
+        <small>{total == null ? 'Esperando publicación' : 'Publicado por jueces'}</small>
+      </aside>
     </main>
   )
 }
 
-function PausaPantalla({ tipo, actual, hasta, detalle, extra }) {
+function InicioTorneoPantalla({ actual, hasta, clubOrganizador }) {
+  return (
+    <main className="break-screen tournament-start-screen">
+      {actual.torneo?.ligaLogo && <img className="league-logo" src={actual.torneo.ligaLogo} alt={actual.torneo?.liga || 'Liga'} />}
+      <section>
+        <div className="break-crest">
+          <Avatar src={clubOrganizador?.logo} label={clubOrganizador?.nombre} color={clubOrganizador?.color} />
+        </div>
+        <span className="start-kicker">Inicio de torneo</span>
+        <h2>{actual.torneo?.nombre || 'Torneo'}</h2>
+        <div className="start-meta">
+          {actual.torneo?.liga && <span>{actual.torneo.liga}</span>}
+          {actual.torneo?.sede && <span>{actual.torneo.sede}</span>}
+        </div>
+      </section>
+      <div className="break-timer">
+        <Timer hasta={hasta} />
+        <small>Comienza en</small>
+      </div>
+    </main>
+  )
+}
+
+function PausaPantalla({ tipo, actual, hasta, patinadoras }) {
   return (
     <main className="break-screen practice-screen">
       <section>
         <span>{actual.torneo?.nombre}</span>
         <h2>{tipo}</h2>
         <p>{actual.categoria?.nombre}</p>
-        <small>{detalle}</small>
       </section>
       <div className="break-timer">
         <Timer hasta={hasta} />
@@ -1096,8 +1315,13 @@ function PausaPantalla({ tipo, actual, hasta, detalle, extra }) {
       </div>
       <div className="break-info">
         <div><span>Categoría</span><strong>{actual.categoria?.nombre || '-'}</strong></div>
-        <div><span>Inicio de competencia</span><strong>{extra}</strong></div>
         <div><span>Estado</span><strong>{tipo}</strong></div>
+      </div>
+      <div className="practice-list">
+        <span>Patinadoras</span>
+        <div>
+          {patinadoras.map((item) => <strong key={item.id}>{item.ordenSalida || item.orden}. {item.nombre}</strong>)}
+        </div>
       </div>
     </main>
   )
@@ -1135,11 +1359,15 @@ function TanteadorLed({ categoria, rows, clubes, data, modo }) {
         </div>
         {visibles.map((row) => {
           const parciales = parcialesPuntaje(data.puntajes[row.id], modo, data.conceptosPuntaje)
+          const club = clubes.find((item) => item.id === row.clubId)
           return (
             <div className="board-row" key={row.id}>
               <strong>{row.puesto || '-'}</strong>
               <span>{row.nombre}</span>
-              <small>{clubes.find((club) => club.id === row.clubId)?.nombre}</small>
+              <div className="board-club">
+                <Avatar src={club?.logo} label={club?.nombre} color={club?.color} />
+                <small>{club?.nombre || '-'}</small>
+              </div>
               {columnas.map((columna) => {
                 const parcial = parciales.find((item) => item.id === columna.id)
                 return <b key={columna.id}>{parcial?.valor == null ? '-' : parcial.valor.toFixed(2)}</b>
@@ -1154,11 +1382,11 @@ function TanteadorLed({ categoria, rows, clubes, data, modo }) {
   )
 }
 
-function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones, importarClubes, importarTecnicas, importarCategorias, importarJueces }) {
+function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones, cargarEscudosClubes, importarClubes, importarTecnicas, importarCategorias, importarJueces, iniciarTorneo, programarInicioTorneo, rehabilitarInicioTorneo }) {
   return (
     <main className="grid admin-grid">
       <Panel title="Configurar evento">
-        <ConfigEvento data={data} mutate={mutate} />
+        <ConfigEvento data={data} mutate={mutate} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} rehabilitarInicioTorneo={rehabilitarInicioTorneo} />
       </Panel>
       <Panel title="Importar patinadoras">
         <div className="import-box">
@@ -1197,6 +1425,12 @@ function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones,
           <div className="song-list">{data.canciones.map((item) => <div key={item.id}><b>{item.id}</b><span>{item.archivo ? 'cargada' : 'sin audio'}</span></div>)}</div>
         </div>
       </Panel>
+      <Panel title="Cargar escudos de clubes">
+        <div className="import-box">
+          <p>El nombre del archivo debe coincidir con el club. Ejemplo: Sol Patín.png se asocia al club Sol Patín.</p>
+          <label>Escudos<input type="file" multiple accept="image/*" onChange={(e) => cargarEscudosClubes(e.target.files)} /></label>
+        </div>
+      </Panel>
       <Panel title="Configurar puntaje">
         <ConfigPuntaje data={data} mutate={mutate} />
       </Panel>
@@ -1229,23 +1463,30 @@ function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones,
         <ConfigUsuarios data={data} mutate={mutate} />
       </Panel>
       <Panel title="Patinadoras">
-        <EditorPatinadoras data={data} mutate={mutate} guardarArchivo={guardarArchivo} />
+        <EditorPatinadoras data={data} mutate={mutate} />
       </Panel>
     </main>
   )
 }
 
-function ConfigEvento({ data, mutate }) {
+function ConfigEvento({ data, mutate, iniciarTorneo, programarInicioTorneo, rehabilitarInicioTorneo }) {
   const torneo = data.torneos[0]
   const [ok, setOk] = useState(false)
+  const [minutosInicio, setMinutosInicio] = useState(5)
+  const bloqueado = Boolean(torneo.confirmado)
+  const grabado = torneo.eventoGrabado
+  const inicioBloqueado = Boolean(torneo.inicioTorneoEn)
+  const inicioProgramado = Boolean(torneo.inicioProgramadoHasta && !inicioBloqueado)
 
   function cambiar(campo, valor) {
+    if (bloqueado) return
     mutate((draft) => {
       draft.torneos[0][campo] = valor
     })
   }
 
   function cambiarTurnos(cantidad) {
+    if (bloqueado) return
     const total = Math.max(1, Number(cantidad) || 1)
     mutate((draft) => {
       const actual = draft.torneos[0]
@@ -1256,18 +1497,40 @@ function ConfigEvento({ data, mutate }) {
   }
 
   function cambiarNombreTurno(index, valor) {
+    if (bloqueado) return
     mutate((draft) => {
       draft.torneos[0].turnos[index] = valor
     })
   }
 
   function confirmar() {
+    mutate((draft) => {
+      const actual = draft.torneos[0]
+      draft.torneos[0].confirmado = true
+      draft.torneos[0].confirmadoEn = new Date().toISOString()
+      draft.torneos[0].eventoGrabado = {
+        nombre: actual.nombre,
+        liga: actual.liga,
+        clubOrganizadorId: actual.clubOrganizadorId,
+        sede: actual.sede,
+        fechaDesde: actual.fechaDesde,
+        fechaHasta: actual.fechaHasta,
+        horarioInicio: actual.horarioInicio,
+        turnos: actual.turnos,
+      }
+    }, `Evento confirmado: ${torneo.nombre}`)
     setOk(true)
     window.setTimeout(() => setOk(false), 1300)
   }
 
+  function habilitarEdicion(checked) {
+    mutate((draft) => {
+      draft.torneos[0].confirmado = !checked
+    }, checked ? `Edición de evento habilitada: ${torneo.nombre}` : `Evento bloqueado: ${torneo.nombre}`)
+  }
+
   function cargarEscudoOrganizador(file) {
-    if (!file || !torneo.clubOrganizadorId) return
+    if (bloqueado || !file || !torneo.clubOrganizadorId) return
     const reader = new FileReader()
     reader.onload = () => {
       mutate((draft) => {
@@ -1279,7 +1542,7 @@ function ConfigEvento({ data, mutate }) {
   }
 
   function cargarLogoLiga(file) {
-    if (!file) return
+    if (bloqueado || !file) return
     const reader = new FileReader()
     reader.onload = () => {
       mutate((draft) => {
@@ -1291,25 +1554,46 @@ function ConfigEvento({ data, mutate }) {
 
   return (
     <div className="event-config">
+      <label className="edit-toggle">Editar evento<input type="checkbox" checked={!bloqueado} onChange={(event) => habilitarEdicion(event.target.checked)} /></label>
       <div className="fields">
-        <label>Nombre del evento<input value={torneo.nombre} onChange={(event) => cambiar('nombre', event.target.value)} /></label>
-        <label>Liga<input value={torneo.liga || ''} onChange={(event) => cambiar('liga', event.target.value)} /></label>
-        <label>Club organizador<select value={torneo.clubOrganizadorId || ''} onChange={(event) => cambiar('clubOrganizadorId', event.target.value)}><option value="">Sin asignar</option>{data.clubes.map((club) => <option key={club.id} value={club.id}>{club.nombre}</option>)}</select></label>
-        <label>Sede<input value={torneo.sede || ''} onChange={(event) => cambiar('sede', event.target.value)} /></label>
-        <label>Fecha desde<input type="date" value={torneo.fechaDesde || ''} onChange={(event) => cambiar('fechaDesde', event.target.value)} /></label>
-        <label>Fecha hasta<input type="date" value={torneo.fechaHasta || ''} onChange={(event) => cambiar('fechaHasta', event.target.value)} /></label>
-        <label>Horario de inicio<input type="time" value={torneo.horarioInicio || ''} onChange={(event) => cambiar('horarioInicio', event.target.value)} /></label>
-        <label>Turnos por día<input type="number" min="1" max="4" value={torneo.turnosPorDia || 1} onChange={(event) => cambiarTurnos(event.target.value)} /></label>
-        <label>Logo liga<input type="file" accept="image/*" onChange={(event) => cargarLogoLiga(event.target.files[0])} /></label>
-        <label>Escudo club organizador<input type="file" accept="image/*" onChange={(event) => cargarEscudoOrganizador(event.target.files[0])} /></label>
+        <label>Nombre del evento<input disabled={bloqueado} value={torneo.nombre} onChange={(event) => cambiar('nombre', event.target.value)} /></label>
+        <label>Liga<input disabled={bloqueado} value={torneo.liga || ''} onChange={(event) => cambiar('liga', event.target.value)} /></label>
+        <label>Club organizador<select disabled={bloqueado} value={torneo.clubOrganizadorId || ''} onChange={(event) => cambiar('clubOrganizadorId', event.target.value)}><option value="">Sin asignar</option>{data.clubes.map((club) => <option key={club.id} value={club.id}>{club.nombre}</option>)}</select></label>
+        <label>Sede<input disabled={bloqueado} value={torneo.sede || ''} onChange={(event) => cambiar('sede', event.target.value)} /></label>
+        <label>Fecha desde<input disabled={bloqueado} type="date" value={torneo.fechaDesde || ''} onChange={(event) => cambiar('fechaDesde', event.target.value)} /></label>
+        <label>Fecha hasta<input disabled={bloqueado} type="date" value={torneo.fechaHasta || ''} onChange={(event) => cambiar('fechaHasta', event.target.value)} /></label>
+        <label>Horario de inicio<input disabled={bloqueado} type="time" value={torneo.horarioInicio || ''} onChange={(event) => cambiar('horarioInicio', event.target.value)} /></label>
+        <label>Turnos por día<input disabled={bloqueado} type="number" min="1" max="4" value={torneo.turnosPorDia || 1} onChange={(event) => cambiarTurnos(event.target.value)} /></label>
+        <label>Logo liga<input disabled={bloqueado} type="file" accept="image/*" onChange={(event) => cargarLogoLiga(event.target.files[0])} /></label>
+        <label>Escudo club organizador<input disabled={bloqueado} type="file" accept="image/*" onChange={(event) => cargarEscudoOrganizador(event.target.files[0])} /></label>
       </div>
       <div className="turnos-config">
         {(torneo.turnos || ['Único']).map((turno, index) => (
-          <label key={index}>Turno {index + 1}<input value={turno} onChange={(event) => cambiarNombreTurno(index, event.target.value)} /></label>
+          <label key={index}>Turno {index + 1}<input disabled={bloqueado} value={turno} onChange={(event) => cambiarNombreTurno(index, event.target.value)} /></label>
         ))}
       </div>
       <small>Días configurados: {diasTorneo(torneo).join(', ') || 'sin fecha'}</small>
-      <button className="ok-button" onClick={confirmar}>{ok ? 'OK ✓' : 'OK'}</button>
+      <div className="start-row">
+        <button className="start-button" disabled={inicioBloqueado} onClick={iniciarTorneo}>{inicioBloqueado ? 'Torneo iniciado' : 'Inicio de Torneo'}</button>
+        <label>Minutos para iniciar<input disabled={inicioBloqueado} type="number" min="1" value={minutosInicio} onChange={(event) => setMinutosInicio(event.target.value)} /></label>
+        <button className="start-button ghost-start" disabled={inicioBloqueado} onClick={() => programarInicioTorneo(minutosInicio)}>{inicioProgramado ? 'Inicio programado' : 'Programar inicio'}</button>
+        {torneo.inicioTorneoEn && <button className="ghost" disabled={bloqueado} onClick={rehabilitarInicioTorneo}>Rehabilitar inicio</button>}
+      </div>
+      {inicioProgramado && (
+        <div className="scheduled-start">
+          <span>Cuenta regresiva para inicio</span>
+          <strong><Timer hasta={torneo.inicioProgramadoHasta} /></strong>
+        </div>
+      )}
+      <button className="ok-button" disabled={bloqueado} onClick={confirmar}>{ok ? 'OK ✓' : 'OK'}</button>
+      {grabado && (
+        <div className="event-summary">
+          <span>Evento grabado</span>
+          <strong>{grabado.nombre}</strong>
+          <p>{grabado.liga || '-'} · {grabado.sede || '-'}</p>
+          <p>{grabado.fechaDesde} al {grabado.fechaHasta} · inicio {grabado.horarioInicio || '-'} · turnos: {(grabado.turnos || []).join(', ')}</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -1438,9 +1722,8 @@ function EditorEntidades({ placeholder, ayudaArchivo, onFile, onAdd }) {
   )
 }
 
-function EditorPatinadoras({ data, mutate, guardarArchivo }) {
+function EditorPatinadoras({ data, mutate }) {
   const [form, setForm] = useState({ nombre: '', categoriaId: data.categorias[0]?.id || '', clubId: data.clubes[0]?.id || '', dia: data.torneos[0]?.fechaDesde || '', turno: data.torneos[0]?.turnos?.[0] || 'Único', ordenSalida: 1, musica: '' })
-  const [file, setFile] = useState(null)
   const [ok, setOk] = useState(false)
   const torneo = data.torneos[0]
   const dias = diasTorneo(torneo)
@@ -1472,11 +1755,9 @@ function EditorPatinadoras({ data, mutate, guardarArchivo }) {
         foto: '',
       })
     }, `Patinadora agregada: ${form.nombre}`)
-    if (file) guardarArchivo('img', 'patinadoras', itemId, 'foto', file)
     setOk(true)
     window.setTimeout(() => setOk(false), 1300)
     setForm((prev) => ({ ...prev, nombre: '', musica: '', ordenSalida: Number(prev.ordenSalida) + 1 }))
-    setFile(null)
   }
 
   return (
@@ -1489,7 +1770,6 @@ function EditorPatinadoras({ data, mutate, guardarArchivo }) {
         <label>Turno<select value={form.turno} onChange={(event) => cambiar('turno', event.target.value)}>{turnos.map((turno) => <option key={turno} value={turno}>{turno}</option>)}</select></label>
         <label>Ubicación de salida<input type="number" min="1" value={form.ordenSalida} onChange={(event) => cambiar('ordenSalida', event.target.value)} /></label>
         <label>Música<input value={form.musica} onChange={(event) => cambiar('musica', event.target.value)} /></label>
-        <label>Foto<input type="file" accept="image/*" onChange={(event) => setFile(event.target.files[0])} /></label>
         <button className="ok-button" onClick={agregar}>{ok ? 'OK ✓' : 'OK'}</button>
       </div>
       {ok && <small>Patinadora confirmada</small>}
@@ -1499,24 +1779,16 @@ function EditorPatinadoras({ data, mutate, guardarArchivo }) {
 
 function Reportes({ data }) {
   const [campos, setCampos] = useState({
-    nombre: true,
-    club: true,
-    categoria: true,
-    dia: true,
-    turno: true,
-    orden: true,
     musica: false,
     profesora: false,
+    puntaje: false,
   })
   const opciones = [
-    ['nombre', 'Nombre'],
-    ['club', 'Club'],
     ['categoria', 'Categoría'],
     ['dia', 'Día'],
-    ['turno', 'Turno'],
-    ['orden', 'Orden de ingreso'],
     ['musica', 'Música'],
     ['profesora', 'Profesora'],
+    ['puntaje', 'Puntuación'],
   ]
   const rows = [...data.patinadoras]
     .sort((a, b) => compararReporte(data, a, b))
@@ -1533,10 +1805,17 @@ function Reportes({ data }) {
     if (campo === 'orden') return row.ordenSalida || row.orden || ''
     if (campo === 'musica') return row.musica || row.musicaId || ''
     if (campo === 'profesora') return data.tecnicas.find((tecnica) => tecnica.id === row.tecnicaId)?.nombre || ''
+    if (campo === 'puntaje') return ''
     return row[campo] || ''
   }
 
   const activos = opciones.filter(([campo]) => campos[campo])
+  const columnas = [
+    ['orden', 'Orden de ingreso'],
+    ['nombre', 'Nombre'],
+    ['club', 'Club'],
+    ...activos,
+  ]
 
   return (
     <main className="print">
@@ -1556,10 +1835,10 @@ function Reportes({ data }) {
                 <strong>{grupo.categoria}</strong>
               </header>
               <table>
-                <thead><tr>{activos.map(([, label]) => <th key={label}>{label}</th>)}</tr></thead>
+                <thead><tr>{columnas.map(([, label]) => <th key={label}>{label}</th>)}</tr></thead>
                 <tbody>
                   {grupo.rows.map((row) => (
-                    <tr key={row.id}>{activos.map(([campo]) => <td key={campo}>{valorCampo(row, campo)}</td>)}</tr>
+                    <tr key={row.id}>{columnas.map(([campo]) => <td key={campo}>{valorCampo(row, campo)}</td>)}</tr>
                   ))}
                 </tbody>
               </table>
@@ -1649,7 +1928,7 @@ function ConfigUsuarios({ data, mutate }) {
   )
 }
 
-function WebPublica({ data, modo }) {
+function WebPublica({ data, modo, pista }) {
   const url = `${window.location.origin}${window.location.pathname}?vista=web`
   const qr = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(url)}`
 
@@ -1666,34 +1945,46 @@ function WebPublica({ data, modo }) {
         </div>
       </Panel>
       <Panel title="Vista previa web">
-        <VistaWeb data={data} modo={modo} compacto />
+        <VistaWeb data={data} modo={modo} pista={pista} compacto />
       </Panel>
     </main>
   )
 }
 
-function VistaWeb({ data, modo, compacto = false }) {
+function VistaWeb({ data, modo, pista, compacto = false }) {
   const categorias = [...data.categorias].sort(compararCategoria)
   const [categoriaId, setCategoriaId] = useState(categorias[0]?.id || '')
-  const [verBuffet, setVerBuffet] = useState(false)
-  const categoria = categorias.find((item) => item.id === categoriaId) || categorias[0]
+  const [vista, setVista] = useState('tanteador')
+  const categoriaPantalla = data.categorias.find((item) => item.id === pista?.categoriaId)
+  const categoria = categorias.find((item) => item.id === categoriaId) || categoriaPantalla || categorias[0]
   const rows = rankingCategoria(data, categoria?.id || '', modo).filter((row) => row.confirmado && row.total != null)
+  const patinadorasPantalla = data.patinadoras
+    .filter((item) => item.categoriaId === pista?.categoriaId && item.estado !== 'ausente')
+    .sort(compararSalida)
 
   return (
     <main className={compacto ? 'web-score compact' : 'web-score'}>
       <header>
-        <button className="buffet-button" onClick={() => setVerBuffet((prev) => !prev)}>Buffet</button>
+        <div className="web-actions">
+          <button className={vista === 'tanteador' ? 'active' : ''} onClick={() => setVista('tanteador')}>Tanteador</button>
+          <button className={vista === 'pantalla' ? 'active' : ''} onClick={() => setVista('pantalla')}>Pantalla</button>
+          <button className={vista === 'buffet' ? 'active' : ''} onClick={() => setVista('buffet')}>Buffet</button>
+          {!compacto && <button onClick={() => document.querySelector('.web-score')?.requestFullscreen?.()}>Maximizar</button>}
+        </div>
         <span>Tanteador online</span>
         <h1>{data.torneos[0]?.nombre}</h1>
         <label>Categoría<select value={categoria?.id || ''} onChange={(event) => setCategoriaId(event.target.value)}>{categorias.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}</select></label>
       </header>
-      {verBuffet && (
+      {vista === 'buffet' && (
         <section className="buffet-web">
           <h2>Buffet</h2>
           <div>{data.buffet.map((item) => <article key={item.id}><span>{item.producto}</span><strong>${Number(item.precio || 0).toLocaleString('es-AR')}</strong></article>)}</div>
         </section>
       )}
-      <section>
+      {vista === 'pantalla' && (
+        <PantallaWeb data={data} pista={pista} categoria={categoriaPantalla || categoria} patinadoras={patinadorasPantalla} />
+      )}
+      {vista === 'tanteador' && <section>
         <h2>{categoria?.nombre}</h2>
         {rows.length ? (
           <div className="web-list">
@@ -1713,8 +2004,49 @@ function VistaWeb({ data, modo, compacto = false }) {
             })}
           </div>
         ) : <div className="empty">Todavía no hay puntajes publicados en esta categoría.</div>}
-      </section>
+      </section>}
     </main>
+  )
+}
+
+function PantallaWeb({ data, pista, categoria, patinadoras }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const inicioProgramadoHasta = pista?.inicioProgramadoHasta || data.torneos[0]?.inicioProgramadoHasta
+  const enInicioProgramado = !data.torneos[0]?.inicioTorneoEn && inicioProgramadoHasta && now < inicioProgramadoHasta
+  const enPrueba = pista?.pruebaPistaHasta && now < pista.pruebaPistaHasta
+  const enRecesoManual = pista?.estado === 'Receso' && pista?.recesoHasta && now < pista.recesoHasta
+  const enRecesoAuto = pista?.categoriaFinalHasta && pista?.autoRecesoHasta && now >= pista.categoriaFinalHasta && now < pista.autoRecesoHasta
+  const hasta = enInicioProgramado ? inicioProgramadoHasta : enPrueba ? pista.pruebaPistaHasta : enRecesoManual ? pista.recesoHasta : enRecesoAuto ? pista.autoRecesoHasta : null
+  const estado = enInicioProgramado ? 'Inicio de torneo' : enPrueba ? 'Probando pista' : (enRecesoManual || enRecesoAuto) ? 'Receso' : pista?.estado || 'Pantalla pública'
+  const siguiente = siguienteCategoria(data, pista?.categoriaId)
+
+  return (
+    <section className="screen-web">
+      <h2>{hasta ? estado : 'En pista'}</h2>
+      <p>{data.torneos[0]?.nombre}</p>
+      {hasta ? (
+        <>
+          <strong>{categoria?.nombre || '-'}</strong>
+          <div className="web-timer"><Timer hasta={hasta} /><span>Cuenta regresiva</span></div>
+        </>
+      ) : (
+        <div className="web-current-next">
+          <article><span>Categoría actual</span><strong>{categoria?.nombre || '-'}</strong></article>
+          <article><span>Siguiente categoría</span><strong>{siguiente?.nombre || 'A confirmar'}</strong></article>
+        </div>
+      )}
+      {enPrueba && (
+        <div className="web-skater-list">
+          <b>Patinadoras</b>
+          {patinadoras.map((item) => <span key={item.id}>{item.ordenSalida || item.orden}. {item.nombre}</span>)}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -1734,7 +2066,7 @@ function RankingClubes({ data, modo }) {
   return (
     <main>
       <Panel title="Ranking clubes">
-        <table><thead><tr><th>Club</th><th>1</th><th>2</th><th>3</th><th>Podios</th><th>Incentivos</th></tr></thead><tbody>{rankingClubes(data, modo).map((row) => <tr key={row.clubId}><td>{data.clubes.find((c) => c.id === row.clubId)?.nombre}</td><td>{row.primero}</td><td>{row.segundo}</td><td>{row.tercero}</td><td>{row.podios}</td><td>{row.incentivos}</td></tr>)}</tbody></table>
+        <table><thead><tr><th>Club</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>Puntos</th><th>Incentivos</th></tr></thead><tbody>{rankingClubes(data, modo).map((row) => <tr key={row.clubId}><td>{data.clubes.find((c) => c.id === row.clubId)?.nombre}</td><td>{row.primero}</td><td>{row.segundo}</td><td>{row.tercero}</td><td>{row.cuarto}</td><td>{row.quinto}</td><td>{row.puntos}</td><td>{row.incentivos}</td></tr>)}</tbody></table>
       </Panel>
     </main>
   )
@@ -1763,11 +2095,88 @@ function Logs({ data }) {
   return <main><Panel title="Registros básicos"><div className="logs">{data.logs.map((log) => <div key={log.id}><time>{new Date(log.fecha).toLocaleString()}</time><span>{log.texto}</span></div>)}</div></Panel></main>
 }
 
+function FlujoCategoria({ data, pista, actual, mostrarProxima = true }) {
+  const actualCategoria = data.categorias.find((categoria) => categoria.id === pista.categoriaId)
+  const siguiente = siguienteCategoria(data, pista.categoriaId)
+  const patinadorasActuales = data.patinadoras
+    .filter((item) => item.categoriaId === pista.categoriaId && item.estado !== 'ausente')
+    .sort(compararSalida)
+  const patinadorasSiguientes = data.patinadoras
+    .filter((item) => item.categoriaId === siguiente?.id && item.estado !== 'ausente')
+    .sort(compararSalida)
+  const indiceActual = patinadorasActuales.findIndex((item) => item.id === actual.patinadora?.id)
+  const proxima = patinadorasActuales[indiceActual + 1]
+  const proximaClub = data.clubes.find((club) => club.id === proxima?.clubId)
+
+  function estadoFila(item) {
+    if (item.id === actual.patinadora?.id) return 'En pista'
+    if (item.estado === 'finalizada') return 'Ya patinó'
+    return 'Pendiente'
+  }
+
+  return (
+    <section className={`flow-board ${mostrarProxima ? '' : 'flow-board-no-next'}`}>
+      {mostrarProxima && <article className="next-card">
+        <span>Siguiente patinadora</span>
+        <strong>{proxima?.nombre || 'Última patinadora de la categoría'}</strong>
+        <small>{proxima ? `${proximaClub?.nombre || '-'} · salida ${proxima.ordenSalida || proxima.orden}` : actualCategoria?.nombre}</small>
+      </article>}
+      <article>
+        <h3>Compitiendo</h3>
+        <p>{actualCategoria?.nombre}</p>
+        <div>
+          {patinadorasActuales.map((item) => (
+            <div className={item.estado === 'finalizada' ? 'done' : item.id === actual.patinadora?.id ? 'current' : ''} key={item.id}>
+              <b>{item.ordenSalida || item.orden}</b>
+              <span>{item.nombre}</span>
+              <small>{nombreClub(data, item.clubId)} · {estadoFila(item)}</small>
+            </div>
+          ))}
+        </div>
+      </article>
+      <article>
+        <h3>Siguiente categoría</h3>
+        <p>{siguiente?.nombre || 'A confirmar'}</p>
+        <div>
+          {patinadorasSiguientes.length ? patinadorasSiguientes.map((item) => (
+            <div key={item.id}>
+              <b>{item.ordenSalida || item.orden}</b>
+              <span>{item.nombre}</span>
+              <small>{nombreClub(data, item.clubId)}</small>
+            </div>
+          )) : <div><span>Sin listado cargado</span></div>}
+        </div>
+      </article>
+    </section>
+  )
+}
+
+function ConfigTema({ data, mutate }) {
+  return (
+    <div className="theme-picker">
+      {temasSistema.map((tema) => (
+        <button key={tema.id} className={data.tema === tema.id ? 'active' : ''} onClick={() => mutate((draft) => { draft.tema = tema.id }, `Tema seleccionado: ${tema.nombre}`)}>
+          <span className={`theme-swatch ${tema.id}`}></span>
+          {tema.nombre}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function FullscreenButton({ targetSelector }) {
+  function abrirPantalla() {
+    const target = document.querySelector(targetSelector) || document.documentElement
+    target.requestFullscreen?.()
+  }
+  return <button className="fullscreen-button" onClick={abrirPantalla}>Maximizar pantalla</button>
+}
+
 function Competidor({ actual, total }) {
   return (
     <section className="competidor">
-      <Avatar src={actual.patinadora?.foto} label={actual.patinadora?.nombre} color={actual.club?.color} />
-      <div><small>{actual.categoria?.nombre}</small><h2>{actual.patinadora?.nombre}</h2><p>{actual.club?.nombre} - {actual.tecnica?.nombre || 'Sin técnica'} - {actual.patinadora?.edad || '-'} años - {actual.patinadora?.dia} {actual.patinadora?.turno} salida {actual.patinadora?.ordenSalida || actual.patinadora?.orden}</p></div>
+      <Avatar src={actual.club?.logo} label={actual.club?.nombre || actual.patinadora?.nombre} color={actual.club?.color} />
+      <div><small>{actual.categoria?.nombre}</small><h2>{actual.patinadora?.nombre}</h2><p>{actual.club?.nombre}</p><b>Ubicación de salida {actual.patinadora?.ordenSalida || actual.patinadora?.orden || '-'}</b></div>
       <strong>{total == null ? '--' : total.toFixed(2)}</strong>
     </section>
   )
@@ -1786,8 +2195,8 @@ function Avatar({ src, label, color = '#22c55e' }) {
   return src ? <img className="avatar" src={src} alt={label || ''} /> : <div className="avatar fallback" style={{ '--avatar': color }}>{(label || '?').slice(0, 2).toUpperCase()}</div>
 }
 
-function Panel({ title, children }) {
-  return <section className="panel"><h2>{title}</h2>{children}</section>
+function Panel({ title, children, className = '' }) {
+  return <section className={`panel ${className}`}><h2>{title}</h2>{children}</section>
 }
 
 function StatusInfo({ clima }) {
@@ -1830,10 +2239,10 @@ function StatusInfo({ clima }) {
         .then((response) => response.ok ? response.json() : null)
         .then((json) => {
           const current = json?.current
-          setWeather(current ? `${Math.round(current.temperature_2m)}°C - viento ${Math.round(current.wind_speed_10m)} km/h` : 'Clima no disponible')
+          setWeather(current ? `${Math.round(current.temperature_2m)}°C - viento ${Math.round(current.wind_speed_10m)} km/h` : '')
         })
-        .catch(() => setWeather('Clima no disponible'))
-    }, () => setWeather('Clima no disponible'), { timeout: 5000 })
+        .catch(() => setWeather(''))
+    }, () => setWeather(''), { timeout: 5000 })
   }, [clima])
 
   return (
@@ -1851,7 +2260,9 @@ function Timer({ hasta }) {
     return () => clearInterval(timer)
   }, [])
   const left = Math.max(0, hasta - now)
-  return <b>{Math.floor(left / 60000)}:{String(Math.floor((left % 60000) / 1000)).padStart(2, '0')}</b>
+  const minutes = Math.floor(left / 60000)
+  const seconds = Math.floor((left % 60000) / 1000)
+  return <b>{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</b>
 }
 
 function Firmas({ jueces }) {
