@@ -5,6 +5,9 @@
 }
 
 .app[data-theme='azul'] {
+  --bg: #020814;
+  --panel: #061425;
+  --panel-2: #0a2035;
   --green: #38bdf8;
   --green-2: #0ea5e9;
   --cyan: #bae6fd;
@@ -13,6 +16,9 @@
 }
 
 .app[data-theme='violeta'] {
+  --bg: #0b0614;
+  --panel: #160b25;
+  --panel-2: #241238;
   --green: #c084fc;
   --green-2: #8b5cf6;
   --cyan: #e9d5ff;
@@ -21,11 +27,66 @@
 }
 
 .app[data-theme='ambar'] {
+  --bg: #120b02;
+  --panel: #1f1406;
+  --panel-2: #33210a;
   --green: #fbbf24;
   --green-2: #d97706;
   --cyan: #fde68a;
   --line: #75510f;
   --muted: #d9c58c;
+}
+
+.app[data-theme='rojo'] {
+  --bg: #120404;
+  --panel: #200808;
+  --panel-2: #351010;
+  --green: #fb7185;
+  --green-2: #e11d48;
+  --cyan: #fecdd3;
+  --line: #7f1d1d;
+  --muted: #e3a5ac;
+}
+
+.app[data-theme='hielo'] {
+  --bg: #031013;
+  --panel: #071a1f;
+  --panel-2: #0d2830;
+  --green: #67e8f9;
+  --green-2: #06b6d4;
+  --cyan: #cffafe;
+  --line: #155e75;
+  --muted: #a5d7df;
+}
+
+.app[data-theme='dorado'] {
+  --bg: #100c03;
+  --panel: #1f1707;
+  --panel-2: #35270b;
+  --green: #facc15;
+  --green-2: #ca8a04;
+  --cyan: #fef3c7;
+  --line: #854d0e;
+  --muted: #dfc986;
+}
+
+.app[data-theme]:not([data-theme='verde']) {
+  min-height: 100vh;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 82% 0%, color-mix(in srgb, var(--green), transparent 84%), transparent 420px),
+    linear-gradient(180deg, color-mix(in srgb, var(--green), transparent 93%), transparent 320px),
+    var(--bg);
+}
+
+.app[data-theme]:not([data-theme='verde']) .top,
+.app[data-theme]:not([data-theme='verde']) .panel,
+.app[data-theme]:not([data-theme='verde']) .break-screen,
+.app[data-theme]:not([data-theme='verde']) .led,
+.app[data-theme]:not([data-theme='verde']) .led-board {
+  background:
+    radial-gradient(circle at 18% 8%, color-mix(in srgb, var(--green), transparent 82%) 0, transparent 34%),
+    linear-gradient(135deg, var(--panel), var(--panel-2) 52%, var(--bg));
 }
 
 .top,
@@ -680,15 +741,20 @@ footer {
 }
 
 .operator-continues {
+  grid-template-columns: 1fr !important;
   min-height: 118px;
-  align-content: center;
-  justify-items: center;
+  place-items: center;
+  padding: 24px;
   text-align: center;
 }
 
 .operator-continues span {
-  max-width: 360px;
-  line-height: 1.35;
+  width: min(100%, 520px);
+  max-width: none;
+  color: #ecfdf5;
+  font-size: clamp(1.15rem, 2vw, 2rem);
+  line-height: 1.25;
+  text-transform: uppercase;
 }
 
 .end-status span {
@@ -1691,6 +1757,114 @@ audio {
   background: #fbbf24;
 }
 
+.theme-swatch.rojo {
+  background: #fb7185;
+}
+
+.theme-swatch.hielo {
+  background: #67e8f9;
+}
+
+.theme-swatch.dorado {
+  background: #facc15;
+}
+
+.saved-events {
+  display: grid;
+  gap: 12px;
+}
+
+.saved-events-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.saved-events-actions small {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.saved-events > div:last-child {
+  display: grid;
+  gap: 10px;
+}
+
+.saved-events article {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  align-items: stretch;
+  padding: 12px;
+  border: 1px solid rgba(40, 230, 122, 0.22);
+  border-radius: 8px;
+  background: rgba(2, 9, 6, 0.62);
+}
+
+.saved-events article.active {
+  border-color: var(--green);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--green), transparent 72%);
+}
+
+.saved-events article div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.saved-events article span {
+  color: var(--green);
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.saved-events article small {
+  color: var(--muted);
+}
+
+.saved-events article > button {
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+.saved-events article {
+  grid-template-areas:
+    "info info"
+    "activar desactivar"
+    "logs eliminar";
+}
+
+.saved-events article > div {
+  grid-area: info;
+}
+
+.saved-events article > button:nth-of-type(1) {
+  grid-area: activar;
+}
+
+.saved-events article > button:nth-of-type(2) {
+  grid-area: desactivar;
+}
+
+.saved-events article > button:nth-of-type(3) {
+  grid-area: logs;
+}
+
+.saved-events article > button:nth-of-type(4) {
+  grid-area: eliminar;
+}
+
+.log-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, auto);
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
 .screen-wrap {
   display: grid;
   gap: 12px;
@@ -2062,7 +2236,9 @@ audio {
   .web-list article,
   .start-row,
   .scheduled-start,
-  .category-end-actions {
+  .category-end-actions,
+  .saved-events article,
+  .log-toolbar {
     grid-template-columns: 1fr;
   }
 

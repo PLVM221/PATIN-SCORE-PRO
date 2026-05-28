@@ -10,6 +10,9 @@ const temasSistema = [
   { id: 'azul', nombre: 'Azul nocturno' },
   { id: 'violeta', nombre: 'Violeta escenario' },
   { id: 'ambar', nombre: 'Ámbar deportivo' },
+  { id: 'rojo', nombre: 'Rojo gala' },
+  { id: 'hielo', nombre: 'Hielo' },
+  { id: 'dorado', nombre: 'Dorado copa' },
 ]
 
 const demo = {
@@ -120,6 +123,7 @@ function normalizeData(data) {
       liga: '',
       ligaLogo: '',
       clubOrganizadorId: '',
+      activo: true,
       confirmado: false,
       fechaDesde: torneo.fecha || new Date().toISOString().slice(0, 10),
       fechaHasta: torneo.fecha || new Date().toISOString().slice(0, 10),
@@ -467,6 +471,7 @@ export default function App() {
   const totalActual = totalPuntaje(actual.puntaje, pista.modo, data.conceptosPuntaje)
   const clubOrganizador = data.clubes.find((club) => club.id === actual.torneo?.clubOrganizadorId)
   const usuarioActual = data.usuarios.find((item) => item.id === usuarioId) || data.usuarios[0]
+  const esAdmin = usuarioActual?.id === 'admin'
   const tabsVisibles = tabs.filter((item) => usuarioActual?.tabs?.includes(item))
 
   const pistaPublica = data.estadoPista || pista
@@ -517,14 +522,14 @@ export default function App() {
   }
 
   function log(texto) {
-    setData((prev) => ({ ...prev, logs: [{ id: id('log'), fecha: new Date().toISOString(), texto }, ...prev.logs] }))
+    setData((prev) => ({ ...prev, logs: [{ id: id('log'), fecha: new Date().toISOString(), torneoId: pista.torneoId, texto }, ...prev.logs] }))
   }
 
   function mutate(fn, texto) {
     setData((prev) => {
       const next = structuredClone(prev)
       fn(next)
-      if (texto) next.logs.unshift({ id: id('log'), fecha: new Date().toISOString(), texto })
+      if (texto) next.logs.unshift({ id: id('log'), fecha: new Date().toISOString(), torneoId: pista.torneoId, texto })
       return next
     })
   }
@@ -916,7 +921,10 @@ export default function App() {
       {tab === 'Operador' && (
         <main className="grid two operator-grid">
           <Panel title="Evento">
-            <ConfigEvento data={data} mutate={mutate} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} rehabilitarInicioTorneo={rehabilitarInicioTorneo} />
+            <ConfigEvento data={data} mutate={mutate} torneoId={pista.torneoId} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} rehabilitarInicioTorneo={rehabilitarInicioTorneo} />
+          </Panel>
+          <Panel title="Torneos guardados">
+            <TorneosGuardados data={data} mutate={mutate} pista={pista} setPista={setPista} esAdmin={esAdmin} />
           </Panel>
           <Panel title="Pista" className="operator-pista-panel">
             <div className="operator-sections">
@@ -974,7 +982,7 @@ export default function App() {
 
       {tab === 'Jueces' && <Jueces data={data} pista={pista} actual={actual} juezId={juezId} setJuezId={setJuezId} actualizarPuntaje={actualizarPuntaje} publicarPuntaje={publicarPuntaje} iniciarPruebaPista={iniciarPruebaPista} silbato={silbato} marcarAusente={marcarAusente} postergar={postergar} />}
       {tab === 'Pública LED' && <main className="screen-wrap"><FullscreenButton targetSelector=".screen-wrap" /><Publica pista={pista} actual={actual} total={totalActual} data={data} modo={pista.modo} iniciarTorneo={iniciarTorneo} /></main>}
-      {tab === 'Datos' && <Datos data={data} mutate={mutate} guardarArchivo={guardarArchivo} importarListado={importarListado} cargarCanciones={cargarCanciones} cargarEscudosClubes={cargarEscudosClubes} importarClubes={importarClubes} importarTecnicas={importarTecnicas} importarCategorias={importarCategorias} importarJueces={importarJueces} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} rehabilitarInicioTorneo={rehabilitarInicioTorneo} />}
+      {tab === 'Datos' && <Datos data={data} mutate={mutate} torneoId={pista.torneoId} guardarArchivo={guardarArchivo} importarListado={importarListado} cargarCanciones={cargarCanciones} cargarEscudosClubes={cargarEscudosClubes} importarClubes={importarClubes} importarTecnicas={importarTecnicas} importarCategorias={importarCategorias} importarJueces={importarJueces} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} rehabilitarInicioTorneo={rehabilitarInicioTorneo} />}
       {tab === 'Web pública' && <WebPublica data={data} modo={pista.modo} pista={pistaPublica} />}
       {tab === 'Reportes' && <Reportes data={data} />}
       {tab === 'Tanteador' && <main className="screen-wrap"><FullscreenButton targetSelector=".screen-wrap" /><Tanteador data={data} categoriaId={pista.categoriaId} modo={pista.modo} /></main>}
@@ -985,7 +993,7 @@ export default function App() {
       <footer>
         <button className="ghost danger" onClick={() => { localStorage.removeItem(STORAGE_KEY); setData(demo); setPista(basePista) }}>Reiniciar demo</button>
         <label className="user-select">Usuario<select value={usuarioId} onChange={(event) => { setUsuarioId(event.target.value); setTab((data.usuarios.find((item) => item.id === event.target.value)?.tabs || tabs)[0]) }}>{data.usuarios.map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.nombre}</option>)}</select></label>
-        <span>Persistencia {persistencia}.</span>
+        <span>Persistencia {persistencia}{persistencia === 'localStorage' ? ' (iniciá npm run server para usar SQLite).' : ''}</span>
       </footer>
     </div>
   )
@@ -1335,11 +1343,11 @@ function TanteadorLed({ categoria, rows, clubes, data, modo }) {
   )
 }
 
-function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones, cargarEscudosClubes, importarClubes, importarTecnicas, importarCategorias, importarJueces, iniciarTorneo, programarInicioTorneo, rehabilitarInicioTorneo }) {
+function Datos({ data, mutate, torneoId, guardarArchivo, importarListado, cargarCanciones, cargarEscudosClubes, importarClubes, importarTecnicas, importarCategorias, importarJueces, iniciarTorneo, programarInicioTorneo, rehabilitarInicioTorneo }) {
   return (
     <main className="grid admin-grid">
       <Panel title="Configurar evento">
-        <ConfigEvento data={data} mutate={mutate} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} rehabilitarInicioTorneo={rehabilitarInicioTorneo} />
+        <ConfigEvento data={data} mutate={mutate} torneoId={torneoId} iniciarTorneo={iniciarTorneo} programarInicioTorneo={programarInicioTorneo} rehabilitarInicioTorneo={rehabilitarInicioTorneo} />
       </Panel>
       <Panel title="Importar patinadoras">
         <div className="import-box">
@@ -1422,8 +1430,8 @@ function Datos({ data, mutate, guardarArchivo, importarListado, cargarCanciones,
   )
 }
 
-function ConfigEvento({ data, mutate, iniciarTorneo, programarInicioTorneo, rehabilitarInicioTorneo }) {
-  const torneo = data.torneos[0]
+function ConfigEvento({ data, mutate, torneoId, iniciarTorneo, programarInicioTorneo, rehabilitarInicioTorneo }) {
+  const torneo = data.torneos.find((item) => item.id === torneoId) || data.torneos[0]
   const [ok, setOk] = useState(false)
   const [minutosInicio, setMinutosInicio] = useState(5)
   const bloqueado = Boolean(torneo.confirmado)
@@ -1434,7 +1442,8 @@ function ConfigEvento({ data, mutate, iniciarTorneo, programarInicioTorneo, reha
   function cambiar(campo, valor) {
     if (bloqueado) return
     mutate((draft) => {
-      draft.torneos[0][campo] = valor
+      const actual = draft.torneos.find((item) => item.id === torneo.id) || draft.torneos[0]
+      actual[campo] = valor
     })
   }
 
@@ -1442,7 +1451,7 @@ function ConfigEvento({ data, mutate, iniciarTorneo, programarInicioTorneo, reha
     if (bloqueado) return
     const total = Math.max(1, Number(cantidad) || 1)
     mutate((draft) => {
-      const actual = draft.torneos[0]
+      const actual = draft.torneos.find((item) => item.id === torneo.id) || draft.torneos[0]
       actual.turnosPorDia = total
       const nombresBase = ['Mañana', 'Tarde', 'Noche']
       actual.turnos = Array.from({ length: total }, (_, index) => actual.turnos?.[index] || nombresBase[index] || `Turno ${index + 1}`)
@@ -1452,16 +1461,18 @@ function ConfigEvento({ data, mutate, iniciarTorneo, programarInicioTorneo, reha
   function cambiarNombreTurno(index, valor) {
     if (bloqueado) return
     mutate((draft) => {
-      draft.torneos[0].turnos[index] = valor
+      const actual = draft.torneos.find((item) => item.id === torneo.id) || draft.torneos[0]
+      actual.turnos[index] = valor
     })
   }
 
   function confirmar() {
     mutate((draft) => {
-      const actual = draft.torneos[0]
-      draft.torneos[0].confirmado = true
-      draft.torneos[0].confirmadoEn = new Date().toISOString()
-      draft.torneos[0].eventoGrabado = {
+      const actual = draft.torneos.find((item) => item.id === torneo.id) || draft.torneos[0]
+      actual.confirmado = true
+      actual.activo = true
+      actual.confirmadoEn = new Date().toISOString()
+      actual.eventoGrabado = {
         nombre: actual.nombre,
         liga: actual.liga,
         clubOrganizadorId: actual.clubOrganizadorId,
@@ -1478,7 +1489,8 @@ function ConfigEvento({ data, mutate, iniciarTorneo, programarInicioTorneo, reha
 
   function habilitarEdicion(checked) {
     mutate((draft) => {
-      draft.torneos[0].confirmado = !checked
+      const actual = draft.torneos.find((item) => item.id === torneo.id) || draft.torneos[0]
+      actual.confirmado = !checked
     }, checked ? `Edición de evento habilitada: ${torneo.nombre}` : `Evento bloqueado: ${torneo.nombre}`)
   }
 
@@ -1487,7 +1499,8 @@ function ConfigEvento({ data, mutate, iniciarTorneo, programarInicioTorneo, reha
     const reader = new FileReader()
     reader.onload = () => {
       mutate((draft) => {
-        const club = draft.clubes.find((item) => item.id === draft.torneos[0].clubOrganizadorId)
+        const actual = draft.torneos.find((item) => item.id === torneo.id) || draft.torneos[0]
+        const club = draft.clubes.find((item) => item.id === actual.clubOrganizadorId)
         if (club) club.logo = reader.result
       }, 'Escudo del club organizador cargado')
     }
@@ -1499,7 +1512,8 @@ function ConfigEvento({ data, mutate, iniciarTorneo, programarInicioTorneo, reha
     const reader = new FileReader()
     reader.onload = () => {
       mutate((draft) => {
-        draft.torneos[0].ligaLogo = reader.result
+        const actual = draft.torneos.find((item) => item.id === torneo.id) || draft.torneos[0]
+        actual.ligaLogo = reader.result
       }, 'Logo de liga cargado')
     }
     reader.readAsDataURL(file)
@@ -1547,6 +1561,128 @@ function ConfigEvento({ data, mutate, iniciarTorneo, programarInicioTorneo, reha
           <p>{grabado.fechaDesde} al {grabado.fechaHasta} · inicio {grabado.horarioInicio || '-'} · turnos: {(grabado.turnos || []).join(', ')}</p>
         </div>
       )}
+    </div>
+  )
+}
+
+function TorneosGuardados({ data, mutate, pista, setPista, esAdmin }) {
+  const torneosGrabados = data.torneos.filter((torneo) => torneo.eventoGrabado || torneo.confirmado)
+
+  function primeraCategoria(torneoId) {
+    return [...data.categorias].filter((categoria) => categoria.torneoId === torneoId).sort(compararCategoria)[0]
+  }
+
+  function primeraPatinadora(categoriaId) {
+    return [...data.patinadoras].filter((patinadora) => patinadora.categoriaId === categoriaId && patinadora.estado !== 'ausente').sort(compararSalida)[0]
+  }
+
+  function activar(torneoId) {
+    if (!esAdmin) return
+    const categoria = primeraCategoria(torneoId)
+    const patinadora = primeraPatinadora(categoria?.id)
+    mutate((draft) => {
+      draft.torneos.forEach((torneo) => {
+        torneo.activo = torneo.id === torneoId
+      })
+    }, `Torneo activado: ${data.torneos.find((torneo) => torneo.id === torneoId)?.nombre || torneoId}`)
+    setPista((prev) => ({
+      ...prev,
+      torneoId,
+      categoriaId: categoria?.id || '',
+      patinadoraId: patinadora?.id || '',
+      estado: 'Preparando',
+      puntajeHasta: null,
+      puntajePatinadoraId: null,
+      recesoHasta: null,
+      pruebaPistaHasta: null,
+    }))
+  }
+
+  function desactivar(torneoId) {
+    if (!esAdmin) return
+    mutate((draft) => {
+      const torneo = draft.torneos.find((item) => item.id === torneoId)
+      if (torneo) torneo.activo = false
+    }, `Torneo desactivado: ${data.torneos.find((torneo) => torneo.id === torneoId)?.nombre || torneoId}`)
+  }
+
+  function eliminar(torneoId) {
+    if (!esAdmin || data.torneos.length <= 1) return
+    if (!window.confirm('¿Eliminar torneo y datos asociados?')) return
+    const categorias = new Set(data.categorias.filter((categoria) => categoria.torneoId === torneoId).map((categoria) => categoria.id))
+    const patinadoras = new Set(data.patinadoras.filter((patinadora) => categorias.has(patinadora.categoriaId)).map((patinadora) => patinadora.id))
+    mutate((draft) => {
+      draft.torneos = draft.torneos.filter((torneo) => torneo.id !== torneoId)
+      draft.categorias = draft.categorias.filter((categoria) => !categorias.has(categoria.id))
+      draft.patinadoras = draft.patinadoras.filter((patinadora) => !patinadoras.has(patinadora.id))
+      patinadoras.forEach((patinadoraId) => { delete draft.puntajes[patinadoraId] })
+    }, `Torneo eliminado: ${data.torneos.find((torneo) => torneo.id === torneoId)?.nombre || torneoId}`)
+    if (pista.torneoId === torneoId) {
+      const siguiente = data.torneos.find((torneo) => torneo.id !== torneoId)
+      if (siguiente) activar(siguiente.id)
+    }
+  }
+
+  function crearTorneo() {
+    if (!esAdmin) return
+    const nuevo = {
+      id: id('tor'),
+      nombre: `Nuevo torneo ${data.torneos.length + 1}`,
+      liga: '',
+      ligaLogo: '',
+      clubOrganizadorId: '',
+      sede: '',
+      fechaDesde: new Date().toISOString().slice(0, 10),
+      fechaHasta: new Date().toISOString().slice(0, 10),
+      horarioInicio: '09:00',
+      turnosPorDia: 1,
+      turnos: ['Único'],
+      activo: true,
+      confirmado: false,
+    }
+    mutate((draft) => {
+      draft.torneos.forEach((torneo) => { torneo.activo = false })
+      draft.torneos.push(nuevo)
+    }, `Torneo creado: ${nuevo.nombre}`)
+    setPista((prev) => ({ ...prev, torneoId: nuevo.id, categoriaId: '', patinadoraId: '', estado: 'Preparando' }))
+  }
+
+  function descargarLogs(torneoId) {
+    const torneo = data.torneos.find((item) => item.id === torneoId)
+    const rows = data.logs.filter((log) => !log.torneoId || log.torneoId === torneoId)
+    const csv = [
+      ['Fecha', 'Torneo', 'Registro'],
+      ...rows.map((log) => [new Date(log.fecha).toLocaleString('es-AR'), torneo?.nombre || '', log.texto]),
+    ].map((row) => row.map((cell) => `"${String(cell || '').replaceAll('"', '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `logs-${slug(torneo?.nombre || torneoId)}.csv`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+
+  return (
+    <div className="saved-events">
+      <div className="saved-events-actions">
+        <button disabled={!esAdmin} onClick={crearTorneo}>Nuevo torneo</button>
+        {!esAdmin && <small>Solo el administrador puede administrar torneos.</small>}
+      </div>
+      <div>
+        {(torneosGrabados.length ? torneosGrabados : data.torneos).map((torneo) => (
+          <article className={pista.torneoId === torneo.id ? 'active' : ''} key={torneo.id}>
+            <div>
+              <span>{torneo.activo ? 'Activo' : 'Guardado'}</span>
+              <strong>{torneo.nombre}</strong>
+              <small>{torneo.liga || '-'} · {torneo.fechaDesde || '-'} al {torneo.fechaHasta || '-'}</small>
+            </div>
+            <button disabled={!esAdmin || pista.torneoId === torneo.id} onClick={() => activar(torneo.id)}>Activar</button>
+            <button disabled={!esAdmin || !torneo.activo} onClick={() => desactivar(torneo.id)}>Desactivar</button>
+            <button onClick={() => descargarLogs(torneo.id)}>Bajar logs</button>
+            <button className="danger" disabled={!esAdmin || data.torneos.length <= 1} onClick={() => eliminar(torneo.id)}>Eliminar</button>
+          </article>
+        ))}
+      </div>
     </div>
   )
 }
@@ -2045,7 +2181,34 @@ function Actas({ data, modo }) {
 }
 
 function Logs({ data }) {
-  return <main><Panel title="Registros básicos"><div className="logs">{data.logs.map((log) => <div key={log.id}><time>{new Date(log.fecha).toLocaleString()}</time><span>{log.texto}</span></div>)}</div></Panel></main>
+  const [torneoId, setTorneoId] = useState(data.torneos[0]?.id || '')
+  const logs = data.logs.filter((log) => !torneoId || !log.torneoId || log.torneoId === torneoId)
+
+  function descargar() {
+    const torneo = data.torneos.find((item) => item.id === torneoId)
+    const csv = [
+      ['Fecha', 'Torneo', 'Registro'],
+      ...logs.map((log) => [new Date(log.fecha).toLocaleString('es-AR'), torneo?.nombre || '', log.texto]),
+    ].map((row) => row.map((cell) => `"${String(cell || '').replaceAll('"', '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `logs-${slug(torneo?.nombre || 'todos')}.csv`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+
+  return (
+    <main>
+      <Panel title="Registros básicos">
+        <div className="log-toolbar">
+          <label>Torneo<select value={torneoId} onChange={(event) => setTorneoId(event.target.value)}><option value="">Todos</option>{data.torneos.map((torneo) => <option key={torneo.id} value={torneo.id}>{torneo.nombre}</option>)}</select></label>
+          <button onClick={descargar}>Bajar logs</button>
+        </div>
+        <div className="logs">{logs.map((log) => <div key={log.id}><time>{new Date(log.fecha).toLocaleString()}</time><span>{log.texto}</span></div>)}</div>
+      </Panel>
+    </main>
+  )
 }
 
 function FlujoCategoria({ data, pista, actual, mostrarProxima = true }) {
